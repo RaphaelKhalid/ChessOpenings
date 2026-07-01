@@ -447,19 +447,40 @@ const mLS  = new THREE.MeshStandardMaterial({ color: 0xf0d9b5, roughness: 0.82 }
 const mDS  = new THREE.MeshStandardMaterial({ color: 0xb58863, roughness: 0.82 });
 const mFrm = new THREE.MeshStandardMaterial({ color: 0x2e1608, roughness: 0.70, metalness: 0.05 });
 const mTbl = new THREE.MeshStandardMaterial({ color: 0x0d0d14, roughness: 1.0 });
-const mW   = new THREE.MeshStandardMaterial({ color: 0xece6d0, roughness: 0.22, metalness: 0.04 });
-const mB   = new THREE.MeshStandardMaterial({ color: 0x28120a, roughness: 0.30, metalness: 0.04 });
 const mHL  = new THREE.MeshStandardMaterial({
   color: 0xd4af37, roughness: 0.4, metalness: 0.5,
   transparent: true, opacity: 0.42,
   depthWrite: false,
 });
 
-// per-piece-type glowing accent gems — a color-coded "tell" that works
-// regardless of side, so pieces stay identifiable at a glance/small scale
-const mGemKing   = new THREE.MeshStandardMaterial({ color: 0xff3b3b, emissive: 0x8a0000, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.3 });
-const mGemQueen  = new THREE.MeshStandardMaterial({ color: 0xb46bff, emissive: 0x53008a, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.3 });
-const mGemBishop = new THREE.MeshStandardMaterial({ color: 0x3ba7ff, emissive: 0x004a8a, emissiveIntensity: 0.8, roughness: 0.25, metalness: 0.3 });
+// cel-shaded (toon) piece materials: a stepped gradient ramp instead of
+// smooth PBR lighting, for a distinct "cool" stylized look
+function gradientRamp(steps) {
+  const data = new Uint8Array(steps);
+  for (let i = 0; i < steps; i++) data[i] = Math.round((255 * (i + 1)) / steps);
+  const tex = new THREE.DataTexture(data, steps, 1, THREE.RedFormat);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
+const toonRamp = gradientRamp(4);
+const mW = new THREE.MeshToonMaterial({ color: 0xece6d0, gradientMap: toonRamp });
+const mB = new THREE.MeshToonMaterial({ color: 0x2a140b, gradientMap: toonRamp });
+
+// black rim outline for the cel-shaded look: an inverted, slightly
+// enlarged backface-only shell behind every piece mesh
+const mOutline = new THREE.MeshBasicMaterial({ color: 0x08080a, side: THREE.BackSide });
+function withOutline(mesh, group) {
+  mesh.castShadow = true;
+  const outline = new THREE.Mesh(mesh.geometry, mOutline);
+  outline.position.copy(mesh.position);
+  outline.rotation.copy(mesh.rotation);
+  outline.scale.copy(mesh.scale).multiplyScalar(1.07);
+  group.add(outline);
+  group.add(mesh);
+  return mesh;
+}
 
 // ── Board ────────────────────────────────────────────────────
 const board = new THREE.Group();
@@ -519,16 +540,15 @@ for (const [t, pts] of Object.entries(PROF)) {
 }
 
 // extra geometry for knight head, rook battlements, king cross, etc.
-const knightHeadG    = new THREE.BoxGeometry(0.26, 0.48, 0.34);
-const knightMuzzleG  = new THREE.BoxGeometry(0.16, 0.18, 0.22);
-const knightEarG     = new THREE.BoxGeometry(0.07, 0.15, 0.07);
-const crossHG        = new THREE.BoxGeometry(0.30, 0.09, 0.09);
-const crossVG        = new THREE.BoxGeometry(0.09, 0.24, 0.09);
-const battG          = new THREE.BoxGeometry(0.11, 0.13, 0.11);
-const gemG           = new THREE.SphereGeometry(0.055, 16, 16);
-const mitreBallG     = new THREE.SphereGeometry(0.085, 16, 16);
-const mitreSlitG     = new THREE.BoxGeometry(0.03, 0.22, 0.16);
-const coronetSpikeG  = new THREE.ConeGeometry(0.045, 0.16, 8);
+const knightHeadG    = new THREE.BoxGeometry(0.28, 0.50, 0.36);
+const knightMuzzleG  = new THREE.BoxGeometry(0.17, 0.19, 0.24);
+const knightEarG     = new THREE.BoxGeometry(0.08, 0.17, 0.08);
+const crossHG        = new THREE.BoxGeometry(0.34, 0.10, 0.10);
+const crossVG        = new THREE.BoxGeometry(0.10, 0.30, 0.10);
+const mitreBallG     = new THREE.SphereGeometry(0.09, 16, 16);
+const mitreSlitG     = new THREE.BoxGeometry(0.035, 0.26, 0.19);
+const coronetSpikeG  = new THREE.ConeGeometry(0.05, 0.20, 6);
+const battG          = new THREE.BoxGeometry(0.12, 0.14, 0.12);
 const pawnCapG       = new THREE.SphereGeometry(0.13, 16, 16);
 
 // ── Create Piece Mesh ─────────────────────────────────────────
@@ -536,68 +556,63 @@ function makePiece(type, color) {
   const mat = color === 'w' ? mW : mB;
   const g = new THREE.Group();
 
-  const shadow = (m) => { m.castShadow = true; return m; };
+  const add = (m) => withOutline(m, g);
 
   if (type === 'n') {
-    g.add(shadow(new THREE.Mesh(GEOS.n, mat)));
+    add(new THREE.Mesh(GEOS.n, mat));
     const head = new THREE.Mesh(knightHeadG, mat);
     head.position.set(0, 0.72, 0.06);
     head.rotation.x = -0.34;
-    g.add(shadow(head));
+    add(head);
     const muzzle = new THREE.Mesh(knightMuzzleG, mat);
     muzzle.position.set(0, 0.62, 0.24);
     muzzle.rotation.x = -0.12;
-    g.add(shadow(muzzle));
+    add(muzzle);
     for (const side of [-1, 1]) {
       const ear = new THREE.Mesh(knightEarG, mat);
       ear.position.set(side * 0.08, 0.98, -0.03);
       ear.rotation.z = side * 0.35;
-      g.add(shadow(ear));
+      add(ear);
     }
     if (color === 'b') g.rotation.y = Math.PI;
 
   } else if (type === 'k') {
-    g.add(shadow(new THREE.Mesh(GEOS.k, mat)));
-    const ch = new THREE.Mesh(crossHG, mat); ch.position.set(0, 0.96, 0); g.add(shadow(ch));
-    const cv = new THREE.Mesh(crossVG, mat); cv.position.set(0, 1.04, 0); g.add(shadow(cv));
-    const gem = new THREE.Mesh(gemG, mGemKing); gem.position.set(0, 0.96, 0); g.add(gem);
+    add(new THREE.Mesh(GEOS.k, mat));
+    const ch = new THREE.Mesh(crossHG, mat); ch.position.set(0, 0.97, 0); add(ch);
+    const cv = new THREE.Mesh(crossVG, mat); cv.position.set(0, 1.07, 0); add(cv);
 
   } else if (type === 'q') {
-    g.add(shadow(new THREE.Mesh(GEOS.q, mat)));
-    // coronet of spikes ringing the crown
+    add(new THREE.Mesh(GEOS.q, mat));
+    // coronet of spikes ringing the crown — the queen's distinctive "tell"
     const N = 6;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
       const spike = new THREE.Mesh(coronetSpikeG, mat);
-      spike.position.set(Math.cos(a) * 0.15, 1.05, Math.sin(a) * 0.15);
-      g.add(shadow(spike));
+      spike.position.set(Math.cos(a) * 0.15, 1.06, Math.sin(a) * 0.15);
+      add(spike);
     }
-    const gem = new THREE.Mesh(gemG, mGemQueen); gem.position.set(0, 1.13, 0); g.add(gem);
 
   } else if (type === 'b') {
-    g.add(shadow(new THREE.Mesh(GEOS.b, mat)));
-    const ball = new THREE.Mesh(mitreBallG, mat); ball.position.set(0, 1.02, 0); g.add(shadow(ball));
-    // classic bishop's mitre notch
+    add(new THREE.Mesh(GEOS.b, mat));
+    const ball = new THREE.Mesh(mitreBallG, mat); ball.position.set(0, 1.02, 0); add(ball);
+    // classic bishop's mitre notch — a deep diagonal cut, the bishop's "tell"
     const slit = new THREE.Mesh(mitreSlitG, mat);
-    slit.position.set(0, 1.02, 0.08);
+    slit.position.set(0, 1.02, 0.09);
     slit.rotation.z = 0.55;
-    g.add(shadow(slit));
-    const gem = new THREE.Mesh(gemG.clone().scale(0.7, 0.7, 0.7), mGemBishop);
-    gem.position.set(0, 1.11, 0);
-    g.add(gem);
+    add(slit);
 
   } else if (type === 'r') {
-    g.add(shadow(new THREE.Mesh(GEOS.r, mat)));
+    add(new THREE.Mesh(GEOS.r, mat));
     for (let i = -1; i <= 1; i++) {
       const batt = new THREE.Mesh(battG, mat);
       batt.position.set(i * 0.16, 0.90, 0);
-      g.add(shadow(batt));
+      add(batt);
     }
   } else if (type === 'p') {
-    g.add(shadow(new THREE.Mesh(GEOS.p, mat)));
-    const cap = new THREE.Mesh(pawnCapG, mat); cap.position.set(0, 0.68, 0); g.add(shadow(cap));
+    add(new THREE.Mesh(GEOS.p, mat));
+    const cap = new THREE.Mesh(pawnCapG, mat); cap.position.set(0, 0.68, 0); add(cap);
   } else {
-    g.add(shadow(new THREE.Mesh(GEOS[type], mat)));
+    add(new THREE.Mesh(GEOS[type], mat));
   }
 
   return g;

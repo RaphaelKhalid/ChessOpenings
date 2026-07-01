@@ -512,13 +512,51 @@ function gradientRamp(steps) {
 }
 const toonRamp = gradientRamp(4);
 const mW = new THREE.MeshToonMaterial({ color: 0xece6d0, gradientMap: toonRamp });
-const mB = new THREE.MeshToonMaterial({ color: 0x7a4326, gradientMap: toonRamp });
+const mB = new THREE.MeshToonMaterial({ color: 0x0d0d0d, gradientMap: toonRamp });
 
 // rim outline for the cel-shaded look: an inverted, slightly enlarged
 // backface-only shell behind every piece mesh. Dark outline on white
 // pieces, light outline on black pieces so it reads against either.
 const mOutlineDark  = new THREE.MeshBasicMaterial({ color: 0x08080a, side: THREE.BackSide });
 const mOutlineLight = new THREE.MeshBasicMaterial({ color: 0xf5efe0, side: THREE.BackSide });
+
+// black pieces are near-zero albedo, so multiplicative toon shading has
+// nothing to work with and reads flat. Compensate with an additive,
+// view-dependent white fresnel glow that traces the same curvature/edges
+// the toon bands would otherwise show, without touching the base color.
+const mFresnelRim = new THREE.ShaderMaterial({
+  uniforms: {
+    rimColor: { value: new THREE.Color(0xffffff) },
+    power: { value: 2.4 },
+    intensity: { value: 0.85 },
+  },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      vViewDir = normalize(-mvPosition.xyz);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    uniform vec3 rimColor;
+    uniform float power;
+    uniform float intensity;
+    void main() {
+      float fresnel = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewDir)), 0.0), power);
+      gl_FragColor = vec4(rimColor, fresnel * intensity);
+    }
+  `,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.FrontSide,
+});
+
 function withOutline(mesh, group, pieceColor) {
   mesh.castShadow = true;
   const outlineMat = pieceColor === 'b' ? mOutlineLight : mOutlineDark;
@@ -528,6 +566,13 @@ function withOutline(mesh, group, pieceColor) {
   outline.scale.copy(mesh.scale).multiplyScalar(1.07);
   group.add(outline);
   group.add(mesh);
+  if (pieceColor === 'b') {
+    const rim = new THREE.Mesh(mesh.geometry, mFresnelRim);
+    rim.position.copy(mesh.position);
+    rim.rotation.copy(mesh.rotation);
+    rim.scale.copy(mesh.scale);
+    group.add(rim);
+  }
   return mesh;
 }
 

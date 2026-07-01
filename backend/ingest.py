@@ -1,4 +1,4 @@
-# One-time ingestion script: reads all TSV openings, embeds them, and writes to Supabase pgvector
+# One-time ingestion script: reads all TSV openings, embeds with fastembed (ONNX, no torch), writes to Supabase
 import os
 import csv
 import time
@@ -6,13 +6,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import execute_values
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 load_dotenv(Path(__file__).parent / ".env")
 
 DATA_DIR = Path(__file__).parent / "data"
 FILES = ["a.tsv", "b.tsv", "c.tsv", "d.tsv", "e.tsv"]
-BATCH_SIZE = 128
+BATCH_SIZE = 256
+EMBEDDING_DIM = 384
 
 
 def load_openings():
@@ -33,34 +34,38 @@ def load_openings():
 def setup_table(cur):
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     cur.execute("DROP TABLE IF EXISTS openings;")
-    cur.execute("""
+    cur.execute(f"""
         CREATE TABLE openings (
             id        SERIAL PRIMARY KEY,
             eco       TEXT NOT NULL,
             name      TEXT NOT NULL,
             pgn       TEXT NOT NULL,
             content   TEXT NOT NULL,
-            embedding vector(384) NOT NULL
+            embedding vector({EMBEDDING_DIM}) NOT NULL
         );
     """)
-    print("openings table created")
+    print(f"openings table created (vector dim: {EMBEDDING_DIM})")
 
 
 def embed_and_insert(cur, model, rows):
     total = len(rows)
-    inserted = 0
+    texts = [r["content"] for r in rows]
 
+    print("Generating embeddings...")
+    embeddings = list(model.embed(texts))
+    print(f"Generated {len(embeddings)} embeddings (dim={len(embeddings[0])})")
+
+    print("Inserting into Supabase...")
     for start in range(0, total, BATCH_SIZE):
-        batch = rows[start:start + BATCH_SIZE]
-        texts = [r["content"] for r in batch]
-        embeddings = model.encode(texts, show_progress_bar=False)
+        batch_rows = rows[start:start + BATCH_SIZE]
+        batch_embs = embeddings[start:start + BATCH_SIZE]
 
         records = [
             (
                 r["eco"], r["name"], r["pgn"], r["content"],
                 "[" + ",".join(str(x) for x in emb.tolist()) + "]"
             )
-            for r, emb in zip(batch, embeddings)
+            for r, emb in zip(batch_rows, batch_embs)
         ]
 
         execute_values(cur, """
@@ -68,10 +73,10 @@ def embed_and_insert(cur, model, rows):
             VALUES %s
         """, records, template="(%s, %s, %s, %s, %s::vector)")
 
-        inserted += len(batch)
+        inserted = min(start + BATCH_SIZE, total)
         print(f"  Inserted {inserted}/{total}", end="\r")
 
-    print(f"\nAll {inserted} rows inserted")
+    print(f"\nAll {total} rows inserted")
 
 
 def verify(cur):
@@ -82,7 +87,6 @@ def verify(cur):
     print(f"Verified: {count} rows in openings table")
     for eco, name in samples:
         print(f"  {eco} — {name}")
-    return count
 
 
 def main():
@@ -90,8 +94,8 @@ def main():
     rows = load_openings()
     print(f"Loaded {len(rows)} openings")
 
-    print("Loading embedding model...")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
+    print("Loading fastembed model (all-MiniLM-L6-v2 via ONNX)...")
+    model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
 
     print("Connecting to Supabase...")
     conn = psycopg2.connect(os.getenv("DATABASE_URL"))
@@ -100,14 +104,11 @@ def main():
 
     setup_table(cur)
 
-    print(f"Embedding and inserting in batches of {BATCH_SIZE}...")
     t0 = time.time()
     embed_and_insert(cur, model, rows)
-    elapsed = time.time() - t0
-    print(f"Ingestion took {elapsed:.1f}s")
+    print(f"Ingestion took {time.time() - t0:.1f}s")
 
     verify(cur)
-
     cur.close()
     conn.close()
     print("INGEST OK")

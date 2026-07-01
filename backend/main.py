@@ -6,7 +6,7 @@ import psycopg2
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from google import genai
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -20,13 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load model once at startup — keeps latency low per request
-_model = SentenceTransformer("all-MiniLM-L6-v2")
+GENERATION_MODEL = "gemini-2.5-flash"
+
+# Both loaded once at startup
+_embed_model = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
 _gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def get_db():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
+
+
+def embed(text: str) -> list[float]:
+    return list(next(iter(_embed_model.embed([text])))).copy()
 
 
 class Question(BaseModel):
@@ -44,11 +50,8 @@ def ask(body: Question):
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-    # Embed the question
-    q_emb = _model.encode(question)
-    q_vec = "[" + ",".join(str(x) for x in q_emb.tolist()) + "]"
+    q_vec = "[" + ",".join(str(x) for x in embed(question)) + "]"
 
-    # Retrieve top 5 most similar openings from Supabase
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -68,7 +71,6 @@ def ask(body: Question):
         for eco, name, pgn, sim in results
     ]
 
-    # Build context for Gemini
     context_lines = "\n".join(
         f"- {eco} {name}: {pgn}" for eco, name, pgn, _ in results
     )
@@ -79,10 +81,7 @@ def ask(body: Question):
         f"Question: {question}"
     )
 
-    response = _gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    response = _gemini.models.generate_content(model=GENERATION_MODEL, contents=prompt)
 
     return {
         "answer": response.text,

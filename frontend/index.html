@@ -107,6 +107,32 @@
       margin-bottom: 0.6rem;
     }
 
+    .sources {
+      margin-top: 1.2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #3d6b3d;
+    }
+
+    .sources-label {
+      font-size: 0.75rem;
+      color: #c8b89a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .source-row {
+      font-size: 0.85rem;
+      color: #a8c8a8;
+      padding: 0.2rem 0;
+    }
+
+    .source-eco {
+      font-weight: bold;
+      color: #d4c090;
+      margin-right: 0.4rem;
+    }
+
     .error { color: #e07070; }
   </style>
 </head>
@@ -122,24 +148,36 @@
     <div class="answer-box" id="answer-box">
       <div class="answer-label">Answer</div>
       <div id="answer-text"></div>
+      <div class="sources" id="sources-section" style="display:none">
+        <div class="sources-label">Openings retrieved</div>
+        <div id="sources-list"></div>
+      </div>
     </div>
   </div>
 
   <script>
+    // SWAP THIS URL after deploying to Render
+    const API_URL = window.location.hostname === "localhost"
+      ? "http://localhost:8001"
+      : "https://YOUR-RENDER-URL.onrender.com";
+
     async function ask() {
       const btn = document.getElementById("submit");
       const question = document.getElementById("question").value.trim();
       const box = document.getElementById("answer-box");
       const text = document.getElementById("answer-text");
+      const sourcesSection = document.getElementById("sources-section");
+      const sourcesList = document.getElementById("sources-list");
 
       if (!question) return;
 
       btn.disabled = true;
       btn.textContent = "Thinking…";
       box.classList.remove("visible");
+      sourcesSection.style.display = "none";
 
       try {
-        const res = await fetch("http://localhost:8000/ask", {
+        const res = await fetch(`${API_URL}/ask`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ question })
@@ -147,8 +185,16 @@
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+
         text.classList.remove("error");
         text.textContent = data.answer;
+
+        if (data.sources && data.sources.length > 0) {
+          sourcesList.innerHTML = data.sources.map(s =>
+            `<div class="source-row"><span class="source-eco">${s.eco}</span>${s.name}</div>`
+          ).join("");
+          sourcesSection.style.display = "block";
+        }
       } catch (err) {
         text.classList.add("error");
         text.textContent = `Error: ${err.message}`;

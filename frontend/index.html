@@ -353,15 +353,13 @@
   </div>
 </main>
 
-<!-- chess.js for PGN parsing -->
-<script src="https://unpkg.com/chess.js@0.10.2/chess.js"></script>
-
-<!-- Three.js importmap -->
+<!-- Three.js + chess.js importmap -->
 <script type="importmap">
 {
   "imports": {
     "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "chess.js": "https://esm.sh/chess.js@0.10.3"
   }
 }
 </script>
@@ -369,6 +367,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Chess } from 'chess.js';
 
 // ── Renderer ────────────────────────────────────────────────
 const canvas = document.getElementById('c');

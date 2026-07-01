@@ -391,6 +391,9 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { Chess } from 'chess.js';
 
 // ── Renderer ────────────────────────────────────────────────
@@ -419,6 +422,49 @@ controls.minDistance = 4;
 controls.maxDistance = 22;
 controls.maxPolarAngle = Math.PI / 2.05;
 controls.update();
+
+// ── Cel-shaded ink pass ─────────────────────────────────────────
+// Detects *geometric* edges (surface-normal discontinuities — piece
+// silhouettes, seams between piece parts, curvature creases) rather
+// than color edges, so flat-shaded surfaces like the checkerboard
+// don't get inked, only the pieces' actual 3D contours do.
+const normalMaterial = new THREE.MeshNormalMaterial();
+let normalTarget = new THREE.WebGLRenderTarget(1, 1);
+
+const inkShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tNormal: { value: null },
+    resolution: { value: new THREE.Vector2(1, 1) },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tNormal;
+    uniform vec2 resolution;
+    varying vec2 vUv;
+    void main() {
+      vec2 t = 1.0 / resolution;
+      vec3 c  = texture2D(tNormal, vUv).rgb;
+      vec3 nx1 = texture2D(tNormal, vUv + vec2( t.x, 0.0)).rgb;
+      vec3 nx2 = texture2D(tNormal, vUv - vec2( t.x, 0.0)).rgb;
+      vec3 ny1 = texture2D(tNormal, vUv + vec2( 0.0, t.y)).rgb;
+      vec3 ny2 = texture2D(tNormal, vUv - vec2( 0.0, t.y)).rgb;
+      float edge = length(nx1 - c) + length(nx2 - c) + length(ny1 - c) + length(ny2 - c);
+      float ink = smoothstep(0.22, 0.55, edge);
+      vec4 base = texture2D(tDiffuse, vUv);
+      gl_FragColor = vec4(mix(base.rgb, vec3(0.03), ink), base.a);
+    }
+  `,
+};
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const inkPass = new ShaderPass(inkShader);
+composer.addPass(inkPass);
 
 // ── Lights ───────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
@@ -468,12 +514,15 @@ const toonRamp = gradientRamp(4);
 const mW = new THREE.MeshToonMaterial({ color: 0xece6d0, gradientMap: toonRamp });
 const mB = new THREE.MeshToonMaterial({ color: 0x2a140b, gradientMap: toonRamp });
 
-// black rim outline for the cel-shaded look: an inverted, slightly
-// enlarged backface-only shell behind every piece mesh
-const mOutline = new THREE.MeshBasicMaterial({ color: 0x08080a, side: THREE.BackSide });
-function withOutline(mesh, group) {
+// rim outline for the cel-shaded look: an inverted, slightly enlarged
+// backface-only shell behind every piece mesh. Dark outline on white
+// pieces, light outline on black pieces so it reads against either.
+const mOutlineDark  = new THREE.MeshBasicMaterial({ color: 0x08080a, side: THREE.BackSide });
+const mOutlineLight = new THREE.MeshBasicMaterial({ color: 0xf5efe0, side: THREE.BackSide });
+function withOutline(mesh, group, pieceColor) {
   mesh.castShadow = true;
-  const outline = new THREE.Mesh(mesh.geometry, mOutline);
+  const outlineMat = pieceColor === 'b' ? mOutlineLight : mOutlineDark;
+  const outline = new THREE.Mesh(mesh.geometry, outlineMat);
   outline.position.copy(mesh.position);
   outline.rotation.copy(mesh.rotation);
   outline.scale.copy(mesh.scale).multiplyScalar(1.07);
@@ -556,7 +605,7 @@ function makePiece(type, color) {
   const mat = color === 'w' ? mW : mB;
   const g = new THREE.Group();
 
-  const add = (m) => withOutline(m, g);
+  const add = (m) => withOutline(m, g, color);
 
   if (type === 'n') {
     add(new THREE.Mesh(GEOS.n, mat));
@@ -717,6 +766,11 @@ function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== w || canvas.height !== h) {
     renderer.setSize(w, h, false);
+    composer.setSize(w, h);
+    const pr = renderer.getPixelRatio();
+    const rw = Math.max(1, Math.round(w * pr)), rh = Math.max(1, Math.round(h * pr));
+    normalTarget.setSize(rw, rh);
+    inkPass.uniforms.resolution.value.set(rw, rh);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
@@ -731,7 +785,15 @@ syncUI();
   requestAnimationFrame(loop);
   resize();
   controls.update();
+
+  scene.overrideMaterial = normalMaterial;
+  renderer.setRenderTarget(normalTarget);
   renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  scene.overrideMaterial = null;
+  inkPass.uniforms.tNormal.value = normalTarget.texture;
+
+  composer.render();
 })();
 </script>
 

@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/frontend/index.html" }]
+  "rewrites": [
+    { "source": "/play", "destination": "/frontend/play.html" },
+    { "source": "/(.*)", "destination": "/frontend/index.html" }
+  ]
 }

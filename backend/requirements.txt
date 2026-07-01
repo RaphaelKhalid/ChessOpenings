@@ -6,3 +6,4 @@ pgvector
 supabase
 google-genai
 fastembed
+chess

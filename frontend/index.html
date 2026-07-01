@@ -51,6 +51,13 @@
     }
     .logo span { color: var(--cream); opacity: 0.55; font-weight: 400; }
 
+    .navlink {
+      font-size: 0.78rem; color: var(--muted); text-decoration: none;
+      border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.7rem;
+      transition: all .15s;
+    }
+    .navlink:hover { color: var(--cream); border-color: var(--gold-dim); }
+
     .status {
       display: flex;
       align-items: center;
@@ -312,9 +319,12 @@
 
 <nav>
   <div class="logo">♟ CHESS<span>OPENINGS</span></div>
-  <div class="status">
-    <div class="dot" id="dot"></div>
-    <span id="st">Connecting…</span>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <a class="navlink" href="/play">Play with a Friend</a>
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="st">Connecting…</span>
+    </div>
   </div>
 </nav>
 

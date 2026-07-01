@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Play with a Friend — Chess Openings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a0f;
+      --surf:     #111118;
+      --surf2:    #18181f;
+      --border:   #252530;
+      --gold:     #d4af37;
+      --gold-dim: #7a6318;
+      --cream:    #f0ead6;
+      --muted:    #55526a;
+      --red:      #f87171;
+      --green:    #4ade80;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--bg);
+      color: var(--cream);
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo { font-family: 'Cinzel', serif; font-size: 1rem; font-weight: 600; letter-spacing: 0.12em; color: var(--gold); }
+    .logo span { color: var(--cream); opacity: 0.55; font-weight: 400; }
+    .navlink {
+      font-size: 0.78rem; color: var(--muted); text-decoration: none;
+      border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.7rem;
+      transition: all .15s;
+    }
+    .navlink:hover { color: var(--cream); border-color: var(--gold-dim); }
+
+    main { flex: 1; display: flex; overflow: hidden; }
+
+    .left {
+      width: 380px; flex-shrink: 0; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto; padding: 1.25rem; gap: 1.1rem;
+    }
+    .right { flex: 1; position: relative; overflow: hidden; }
+    #c { width: 100%; height: 100%; display: block; }
+
+    .lbl { font-size: 0.67rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.55rem; }
+
+    .segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .seg-btn {
+      background: var(--surf2); border: 1px solid var(--border); color: var(--cream);
+      border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; cursor: pointer; transition: all .15s;
+    }
+    .seg-btn:hover { border-color: var(--gold-dim); }
+    .seg-btn.active { border-color: var(--gold); background: rgba(212,175,55,.12); color: var(--gold); }
+
+    .btn-primary {
+      width: 100%; background: var(--gold); color: #1a1408; border: none; border-radius: 8px;
+      padding: 0.75rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+      font-family: inherit;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-secondary {
+      width: 100%; background: transparent; color: var(--cream); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.6rem; font-size: 0.78rem; cursor: pointer; transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-secondary:hover { border-color: var(--red); color: var(--red); }
+
+    .share-box {
+      display: flex; gap: 0.4rem; align-items: center;
+      background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;
+    }
+    .share-box input {
+      flex: 1; background: transparent; border: none; color: var(--cream); font-size: 0.72rem;
+      font-family: monospace; outline: none; min-width: 0;
+    }
+    .copy-btn {
+      background: var(--gold); color: #1a1408; border: none; border-radius: 5px; padding: 0.35rem 0.6rem;
+      font-size: 0.7rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+    }
+
+    .player-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.7rem 0.9rem; background: var(--surf2); border: 1px solid var(--border); border-radius: 8px;
+    }
+    .player-row.active-turn { border-color: var(--gold); }
+    .player-name { font-size: 0.82rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+    .swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .swatch.w { background: var(--cream); }
+    .swatch.b { background: #0d0d0d; border: 1px solid #444; }
+    .clock {
+      font-family: 'SF Mono', Consolas, monospace; font-size: 1.15rem; font-weight: 500; color: var(--cream);
+      min-width: 4.5em; text-align: right;
+    }
+    .clock.low { color: var(--red); }
+    .clock.na { color: var(--muted); font-size: 0.85rem; }
+
+    .status-line { font-size: 0.75rem; color: var(--muted); text-align: center; }
+
+    .banner {
+      display: none; padding: 1rem; border-radius: 8px; text-align: center;
+      background: rgba(212,175,55,.09); border: 1px solid var(--gold-dim);
+    }
+    .banner.on { display: block; }
+    .banner .result { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1.1rem; margin-bottom: 0.3rem; }
+    .banner .reason { font-size: 0.78rem; color: var(--muted); text-transform: capitalize; }
+
+    .hint { position: absolute; top: 0.75rem; right: 1rem; font-size: 0.68rem; color: var(--muted); pointer-events: none; }
+
+    .center-msg { margin: auto; text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem; }
+    .center-msg .big { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1rem; margin-bottom: 0.6rem; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">♟ CHESS<span>OPENINGS</span></div>
+  <a class="navlink" href="/">← Back to Assistant</a>
+</nav>
+
+<main>
+  <div class="left" id="panel"></div>
+  <div class="right">
+    <canvas id="c"></canvas>
+    <div class="hint">Click a piece, then a highlighted square · Drag to rotate</div>
+  </div>
+</main>
+
+<!-- Three.js + chess.js importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "chess.js": "https://esm.sh/chess.js@0.10.3"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Chess } from 'chess.js';
+
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:8001'
+  : 'https://chessopenings-ptkm.onrender.com';
+const WS_BASE = API.replace(/^http/, 'ws');
+
+// ── Renderer ────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.setClearColor(0x0a0a0f);
+
+// ── Scene & Camera ───────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a0f, 0.028);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
+camera.position.set(3.5, 8.5, 11);
+camera.lookAt(3.5, 0, 3.5);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(3.5, 0, 3.5);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 4;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.update();
+
+function orientCameraFor(myColor) {
+  // Default camera (z=11) puts rank 8 (Black's home row) nearest the
+  // camera/bottom of screen, so White needs the flipped position instead.
+  if (myColor === 'white') {
+    camera.position.set(3.5, 8.5, -4);
+  } else {
+    camera.position.set(3.5, 8.5, 11);
+  }
+  camera.lookAt(3.5, 0, 3.5);
+  controls.update();
+}
+
+// ── Cel-shaded ink pass ─────────────────────────────────────────
+const normalMaterial = new THREE.MeshNormalMaterial();
+let normalTarget = new THREE.WebGLRenderTarget(1, 1);
+
+const inkShader = {
+  uniforms: { tDiffuse: { value: null }, tNormal: { value: null }, resolution: { value: new THREE.Vector2(1, 1) } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tNormal;
+    uniform vec2 resolution;
+    varying vec2 vUv;
+    void main() {
+      vec2 t = 1.0 / resolution;
+      vec3 c  = texture2D(tNormal, vUv).rgb;
+      vec3 nx1 = texture2D(tNormal, vUv + vec2( t.x, 0.0)).rgb;
+      vec3 nx2 = texture2D(tNormal, vUv - vec2( t.x, 0.0)).rgb;
+      vec3 ny1 = texture2D(tNormal, vUv + vec2( 0.0, t.y)).rgb;
+      vec3 ny2 = texture2D(tNormal, vUv - vec2( 0.0, t.y)).rgb;
+      float edge = length(nx1 - c) + length(nx2 - c) + length(ny1 - c) + length(ny2 - c);
+      float ink = smoothstep(0.22, 0.55, edge);
+      vec4 base = texture2D(tDiffuse, vUv);
+      gl_FragColor = vec4(mix(base.rgb, vec3(0.03), ink), base.a);
+    }
+  `,
+};
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const inkPass = new ShaderPass(inkShader);
+composer.addPass(inkPass);
+
+// ── Lights ───────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xfff5e0, 0.55));
+const key = new THREE.DirectionalLight(0xfffaee, 2.0);
+key.position.set(7, 14, 9);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 50;
+key.shadow.camera.left = key.shadow.camera.bottom = -10;
+key.shadow.camera.right = key.shadow.camera.top = 10;
+key.shadow.bias = -0.0008;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xc8d8ff, 0.35);
+fill.position.set(-7, 6, -4);
+scene.add(fill);
+const rimLight = new THREE.DirectionalLight(0xffd090, 0.25);
+rimLight.position.set(0, 5, -12);
+scene.add(rimLight);
+
+// ── Materials ────────────────────────────────────────────────
+const mLS  = new THREE.MeshStandardMaterial({ color: 0xf0d9b5, roughness: 0.82 });
+const mDS  = new THREE.MeshStandardMaterial({ color: 0xb58863, roughness: 0.82 });
+const mFrm = new THREE.MeshStandardMaterial({ color: 0x2e1608, roughness: 0.70, metalness: 0.05 });
+const mTbl = new THREE.MeshStandardMaterial({ color: 0x0d0d14, roughness: 1.0 });
+const mHL  = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.5, transparent: true, opacity: 0.42, depthWrite: false });
+const mLegal = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.5, depthWrite: false });
+const mSel   = new THREE.MeshStandardMaterial({ color: 0x3ba7ff, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false });
+
+function gradientRamp(steps) {
+  const data = new Uint8Array(steps);
+  for (let i = 0; i < steps; i++) data[i] = Math.round((255 * (i + 1)) / steps);
+  const tex = new THREE.DataTexture(data, steps, 1, THREE.RedFormat);
+  tex.needsUpdate = true;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+}
+const toonRamp = gradientRamp(4);
+const mW = new THREE.MeshToonMaterial({ color: 0xece6d0, gradientMap: toonRamp });
+const mB = new THREE.MeshToonMaterial({ color: 0x0d0d0d, gradientMap: toonRamp });
+
+const mOutlineDark  = new THREE.MeshBasicMaterial({ color: 0x08080a, side: THREE.BackSide });
+const mOutlineLight = new THREE.MeshBasicMaterial({ color: 0xf5efe0, side: THREE.BackSide });
+
+const mFresnelRim = new THREE.ShaderMaterial({
+  uniforms: { rimColor: { value: new THREE.Color(0xffffff) }, power: { value: 2.4 }, intensity: { value: 0.85 } },
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      vViewDir = normalize(-mvPosition.xyz);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    uniform vec3 rimColor;
+    uniform float power;
+    uniform float intensity;
+    void main() {
+      float fresnel = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewDir)), 0.0), power);
+      gl_FragColor = vec4(rimColor, fresnel * intensity);
+    }
+  `,
+  transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide,
+});
+
+function withOutline(mesh, group, pieceColor) {
+  mesh.castShadow = true;
+  const outlineMat = pieceColor === 'b' ? mOutlineLight : mOutlineDark;
+  const outline = new THREE.Mesh(mesh.geometry, outlineMat);
+  outline.position.copy(mesh.position);
+  outline.rotation.copy(mesh.rotation);
+  outline.scale.copy(mesh.scale).multiplyScalar(1.07);
+  group.add(outline);
+  group.add(mesh);
+  if (pieceColor === 'b') {
+    const rim = new THREE.Mesh(mesh.geometry, mFresnelRim);
+    rim.position.copy(mesh.position);
+    rim.rotation.copy(mesh.rotation);
+    rim.scale.copy(mesh.scale);
+    group.add(rim);
+  }
+  return mesh;
+}
+
+// ── Board ────────────────────────────────────────────────────
+const board = new THREE.Group();
+scene.add(board);
+
+const tbl = new THREE.Mesh(new THREE.BoxGeometry(18, 0.18, 18), mTbl);
+tbl.position.set(3.5, -0.3, 3.5);
+tbl.receiveShadow = true;
+board.add(tbl);
+
+const frm = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.14, 9.4), mFrm);
+frm.position.set(3.5, -0.07, 3.5);
+frm.receiveShadow = true;
+board.add(frm);
+
+const sqG = new THREE.BoxGeometry(1, 0.07, 1);
+for (let r = 0; r < 8; r++) {
+  for (let c = 0; c < 8; c++) {
+    const m = new THREE.Mesh(sqG, (r + c) % 2 === 0 ? mLS : mDS);
+    m.position.set(c, 0, r);
+    m.receiveShadow = true;
+    board.add(m);
+  }
+}
+
+const hlG = new THREE.BoxGeometry(0.97, 0.075, 0.97);
+const hl1 = new THREE.Mesh(hlG, mHL); hl1.visible = false; board.add(hl1);
+const hl2 = new THREE.Mesh(hlG, mHL); hl2.visible = false; board.add(hl2);
+const selHl = new THREE.Mesh(hlG, mSel); selHl.visible = false; board.add(selHl);
+
+// legal-move destination markers, pre-allocated pool
+const legalDotG = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 20);
+const legalHighlights = [];
+for (let i = 0; i < 28; i++) {
+  const m = new THREE.Mesh(legalDotG, mLegal);
+  m.visible = false;
+  board.add(m);
+  legalHighlights.push(m);
+}
+
+// invisible-but-raycastable hit planes, one per square, tagged with algebraic name
+const hitPlaneG = new THREE.PlaneGeometry(1, 1);
+const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+const hitPlanes = [];
+for (let f = 0; f < 8; f++) {
+  for (let rk = 1; rk <= 8; rk++) {
+    const m = new THREE.Mesh(hitPlaneG, hitMat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(f, 0.09, rk - 1);
+    m.userData.sq = String.fromCharCode(97 + f) + rk;
+    board.add(m);
+    hitPlanes.push(m);
+  }
+}
+
+function squareToWorld(sq) {
+  const file = sq.charCodeAt(0) - 97;
+  const rank = parseInt(sq[1]) - 1;
+  return { x: file, z: rank };
+}
+
+// ── Piece Profiles (LatheGeometry) ───────────────────────────
+function v2(x, y) { return new THREE.Vector2(x, y); }
+
+const PROF = {
+  p: [v2(0,.00),v2(.27,.00),v2(.29,.05),v2(.26,.09),v2(.16,.15),v2(.13,.23),v2(.13,.30),
+      v2(.17,.36),v2(.21,.44),v2(.21,.52),v2(.17,.59),v2(.09,.65),v2(.04,.68),v2(0,.68)],
+  r: [v2(0,.00),v2(.27,.00),v2(.29,.05),v2(.26,.09),v2(.19,.15),v2(.17,.22),v2(.17,.62),
+      v2(.21,.66),v2(.25,.70),v2(.25,.82),v2(0,.82)],
+  n: [v2(0,.00),v2(.27,.00),v2(.29,.05),v2(.26,.09),v2(.18,.15),v2(.15,.25),v2(.15,.42),v2(0,.42)],
+  b: [v2(0,.00),v2(.26,.00),v2(.28,.05),v2(.25,.09),v2(.15,.15),v2(.12,.23),v2(.12,.33),
+      v2(.17,.39),v2(.20,.48),v2(.19,.59),v2(.13,.68),v2(.07,.77),v2(.04,.84),
+      v2(.06,.90),v2(.08,.94),v2(.05,.98),v2(0,.98)],
+  q: [v2(0,.00),v2(.29,.00),v2(.31,.05),v2(.28,.09),v2(.18,.16),v2(.14,.26),v2(.14,.36),
+      v2(.19,.43),v2(.23,.53),v2(.22,.62),v2(.17,.68),v2(.15,.75),v2(.17,.81),
+      v2(.21,.86),v2(.21,.92),v2(.15,.98),v2(.08,1.03),v2(.03,1.07),v2(0,1.07)],
+  k: [v2(0,.00),v2(.29,.00),v2(.31,.05),v2(.28,.09),v2(.18,.16),v2(.14,.26),v2(.14,.36),
+      v2(.19,.43),v2(.23,.53),v2(.22,.62),v2(.17,.68),v2(.13,.74),v2(.11,.82),v2(0,.82)],
+};
+
+const SEGS = 30;
+const GEOS = {};
+for (const [t, pts] of Object.entries(PROF)) GEOS[t] = new THREE.LatheGeometry(pts, SEGS);
+
+const knightHeadG    = new THREE.BoxGeometry(0.28, 0.50, 0.36);
+const knightMuzzleG  = new THREE.BoxGeometry(0.17, 0.19, 0.24);
+const knightEarG     = new THREE.BoxGeometry(0.08, 0.17, 0.08);
+const crossHG        = new THREE.BoxGeometry(0.34, 0.10, 0.10);
+const crossVG        = new THREE.BoxGeometry(0.10, 0.30, 0.10);
+const mitreBallG     = new THREE.SphereGeometry(0.09, 16, 16);
+const mitreSlitG     = new THREE.BoxGeometry(0.035, 0.26, 0.19);
+const coronetSpikeG  = new THREE.ConeGeometry(0.05, 0.20, 6);
+const battG          = new THREE.BoxGeometry(0.12, 0.14, 0.12);
+const pawnCapG       = new THREE.SphereGeometry(0.13, 16, 16);
+
+function makePiece(type, color) {
+  const mat = color === 'w' ? mW : mB;
+  const g = new THREE.Group();
+  const add = (m) => withOutline(m, g, color);
+
+  if (type === 'n') {
+    add(new THREE.Mesh(GEOS.n, mat));
+    const head = new THREE.Mesh(knightHeadG, mat);
+    head.position.set(0, 0.72, 0.06);
+    head.rotation.x = -0.34;
+    add(head);
+    const muzzle = new THREE.Mesh(knightMuzzleG, mat);
+    muzzle.position.set(0, 0.62, 0.24);
+    muzzle.rotation.x = -0.12;
+    add(muzzle);
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(knightEarG, mat);
+      ear.position.set(side * 0.08, 0.98, -0.03);
+      ear.rotation.z = side * 0.35;
+      add(ear);
+    }
+    if (color === 'b') g.rotation.y = Math.PI;
+  } else if (type === 'k') {
+    add(new THREE.Mesh(GEOS.k, mat));
+    const ch = new THREE.Mesh(crossHG, mat); ch.position.set(0, 0.97, 0); add(ch);
+    const cv = new THREE.Mesh(crossVG, mat); cv.position.set(0, 1.07, 0); add(cv);
+  } else if (type === 'q') {
+    add(new THREE.Mesh(GEOS.q, mat));
+    const N = 6;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const spike = new THREE.Mesh(coronetSpikeG, mat);
+      spike.position.set(Math.cos(a) * 0.15, 1.06, Math.sin(a) * 0.15);
+      add(spike);
+    }
+  } else if (type === 'b') {
+    add(new THREE.Mesh(GEOS.b, mat));
+    const ball = new THREE.Mesh(mitreBallG, mat); ball.position.set(0, 1.02, 0); add(ball);
+    const slit = new THREE.Mesh(mitreSlitG, mat);
+    slit.position.set(0, 1.02, 0.09);
+    slit.rotation.z = 0.55;
+    add(slit);
+  } else if (type === 'r') {
+    add(new THREE.Mesh(GEOS.r, mat));
+    for (let i = -1; i <= 1; i++) {
+      const batt = new THREE.Mesh(battG, mat);
+      batt.position.set(i * 0.16, 0.90, 0);
+      add(batt);
+    }
+  } else if (type === 'p') {
+    add(new THREE.Mesh(GEOS.p, mat));
+    const cap = new THREE.Mesh(pawnCapG, mat); cap.position.set(0, 0.68, 0); add(cap);
+  } else {
+    add(new THREE.Mesh(GEOS[type], mat));
+  }
+  return g;
+}
+
+// ── Board State ───────────────────────────────────────────────
+const BOARD_Y = 0.07;
+let pieces = [];
+
+function clearPieces() {
+  pieces.forEach(p => board.remove(p));
+  pieces = [];
+}
+
+function renderPos(chessBoard, lastMove) {
+  clearPieces();
+  hl1.visible = hl2.visible = false;
+  if (lastMove) {
+    const f = squareToWorld(lastMove.from);
+    const t = squareToWorld(lastMove.to);
+    hl1.position.set(f.x, BOARD_Y, f.z); hl1.visible = true;
+    hl2.position.set(t.x, BOARD_Y, t.z); hl2.visible = true;
+  }
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const sq = chessBoard[r][c];
+      if (!sq) continue;
+      const p = makePiece(sq.type, sq.color);
+      p.position.set(c, BOARD_Y, 7 - r);
+      board.add(p);
+      pieces.push(p);
+    }
+  }
+}
+
+function clearSelection() {
+  selHl.visible = false;
+  legalHighlights.forEach(h => h.visible = false);
+}
+
+function showLegalMoves(sq) {
+  clearSelection();
+  const p = squareToWorld(sq);
+  selHl.position.set(p.x, BOARD_Y, p.z);
+  selHl.visible = true;
+  const moves = chess.moves({ square: sq, verbose: true });
+  moves.forEach((mv, i) => {
+    if (i >= legalHighlights.length) return;
+    const w = squareToWorld(mv.to);
+    const h = legalHighlights[i];
+    h.position.set(w.x, BOARD_Y + 0.03, w.z);
+    h.visible = true;
+  });
+  return moves;
+}
+
+// ── Resize ────────────────────────────────────────────────────
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    renderer.setSize(w, h, false);
+    composer.setSize(w, h);
+    const pr = renderer.getPixelRatio();
+    const rw = Math.max(1, Math.round(w * pr)), rh = Math.max(1, Math.round(h * pr));
+    normalTarget.setSize(rw, rh);
+    inkPass.uniforms.resolution.value.set(rw, rh);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+
+;(function loop() {
+  requestAnimationFrame(loop);
+  resize();
+  controls.update();
+  scene.overrideMaterial = normalMaterial;
+  renderer.setRenderTarget(normalTarget);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  scene.overrideMaterial = null;
+  inkPass.uniforms.tNormal.value = normalTarget.texture;
+  composer.render();
+})();
+
+// ── Game client (client-side chess.js used only for legal-move UX;
+//    the server is authoritative and re-renders from its own FEN) ──
+let chess = new Chess();
+renderPos(chess.board(), null);
+
+let ws = null;
+let myColor = null;     // 'white' | 'black'
+let gameId = null;
+let selectedSq = null;
+let lastState = null;
+let clockAnchor = 0;    // performance.now() at last state update
+
+const params = new URLSearchParams(location.search);
+gameId = params.get('g');
+
+const panel = document.getElementById('panel');
+
+function tokenKey(id) { return `chess_play_token_${id}`; }
+
+function fmtClock(seconds) {
+  if (seconds === null || seconds === undefined) return '—:—';
+  seconds = Math.max(0, seconds);
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+const TIME_CONTROL_LABELS = {
+  bullet1: 'Bullet · 1 min', blitz3: 'Blitz · 3 min', blitz5: 'Blitz · 5 min',
+  rapid10: 'Rapid · 10 min', rapid15: 'Rapid · 15+10', classical30: 'Classical · 30 min',
+  untimed: 'No time control',
+};
+
+// ── Lobby (no game id yet) ──────────────────────────────────────
+function renderLobby() {
+  let tc = 'blitz5', color = 'random';
+  panel.innerHTML = `
+    <div>
+      <div class="lbl">Time Control</div>
+      <div class="segmented" id="tc-picker">
+        ${Object.entries(TIME_CONTROL_LABELS).map(([k, label]) =>
+          `<button class="seg-btn${k === tc ? ' active' : ''}" data-v="${k}">${label}</button>`
+        ).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="lbl">Play As</div>
+      <div class="segmented" id="color-picker">
+        <button class="seg-btn active" data-v="random">Random</button>
+        <button class="seg-btn" data-v="white">White</button>
+        <button class="seg-btn" data-v="black">Black</button>
+      </div>
+    </div>
+    <button class="btn-primary" id="create-btn">Create Game</button>
+    <div class="status-line">No account needed — you'll get a link to send your friend.</div>
+  `;
+  panel.querySelector('#tc-picker').addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn'); if (!btn) return;
+    tc = btn.dataset.v;
+    panel.querySelectorAll('#tc-picker .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+  panel.querySelector('#color-picker').addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn'); if (!btn) return;
+    color = btn.dataset.v;
+    panel.querySelectorAll('#color-picker .seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+  panel.querySelector('#create-btn').addEventListener('click', async () => {
+    const btn = panel.querySelector('#create-btn');
+    btn.disabled = true; btn.textContent = 'Creating…';
+    try {
+      const res = await fetch(`${API}/games`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ time_control: tc, color }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      localStorage.setItem(tokenKey(data.game_id), data.token);
+      localStorage.setItem(tokenKey(data.game_id) + '_color', data.color);
+      location.href = `/play?g=${data.game_id}`;
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Create Game';
+      alert('Could not create game: ' + e.message);
+    }
+  });
+}
+
+// ── Join screen (link opened, no stored token) ──────────────────
+async function renderJoinScreen(id) {
+  panel.innerHTML = `<div class="center-msg">Loading game…</div>`;
+  let info;
+  try {
+    const res = await fetch(`${API}/games/${id}`);
+    if (!res.ok) throw new Error(res.status === 404 ? 'Game not found' : `HTTP ${res.status}`);
+    info = await res.json();
+  } catch (e) {
+    panel.innerHTML = `<div class="center-msg"><div class="big">Game unavailable</div>${e.message}</div>`;
+    return;
+  }
+  if (!info.open_color) {
+    panel.innerHTML = `<div class="center-msg"><div class="big">This game is full</div>Both seats are already taken.</div>`;
+    return;
+  }
+  panel.innerHTML = `
+    <div class="center-msg">
+      <div class="big">You've been invited to a game</div>
+      ${TIME_CONTROL_LABELS[info.time_control] || info.time_control}<br/>
+      Open seat: <strong style="color:var(--gold)">${info.open_color}</strong>
+    </div>
+    <button class="btn-primary" id="join-btn">Join as ${info.open_color}</button>
+  `;
+  panel.querySelector('#join-btn').addEventListener('click', async () => {
+    const btn = panel.querySelector('#join-btn');
+    btn.disabled = true; btn.textContent = 'Joining…';
+    try {
+      const res = await fetch(`${API}/games/${id}/join`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      localStorage.setItem(tokenKey(id), data.token);
+      localStorage.setItem(tokenKey(id) + '_color', data.color);
+      connectGame(id, data.token, data.color);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = `Join as ${info.open_color}`;
+      alert('Could not join: ' + e.message);
+    }
+  });
+}
+
+// ── In-game UI ────────────────────────────────────────────────
+function renderGameShell() {
+  const shareUrl = `${location.origin}/play?g=${gameId}`;
+  panel.innerHTML = `
+    <div>
+      <div class="lbl">Share with a friend</div>
+      <div class="share-box">
+        <input type="text" readonly value="${shareUrl}" id="share-url"/>
+        <button class="copy-btn" id="copy-btn">Copy</button>
+      </div>
+    </div>
+    <div class="player-row" id="row-opp">
+      <div class="player-name"><span class="swatch" id="swatch-opp"></span>Opponent</div>
+      <div class="clock na" id="clock-opp">—:—</div>
+    </div>
+    <div class="player-row" id="row-me">
+      <div class="player-name"><span class="swatch" id="swatch-me"></span>You</div>
+      <div class="clock na" id="clock-me">—:—</div>
+    </div>
+    <div class="status-line" id="status-line">Waiting for opponent…</div>
+    <div class="banner" id="banner">
+      <div class="result" id="banner-result"></div>
+      <div class="reason" id="banner-reason"></div>
+    </div>
+    <button class="btn-secondary" id="resign-btn">Resign</button>
+  `;
+  panel.querySelector('#copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      const b = panel.querySelector('#copy-btn');
+      b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy', 1200);
+    });
+  });
+  panel.querySelector('#resign-btn').addEventListener('click', () => {
+    if (lastState?.status === 'active' && ws && confirm('Resign this game?')) {
+      ws.send(JSON.stringify({ type: 'resign' }));
+    }
+  });
+  const oppColor = myColor === 'white' ? 'black' : 'white';
+  panel.querySelector('#swatch-me').className = `swatch ${myColor === 'white' ? 'w' : 'b'}`;
+  panel.querySelector('#swatch-opp').className = `swatch ${oppColor === 'white' ? 'w' : 'b'}`;
+}
+
+function updateGameUI(state) {
+  // The server also broadcasts once/sec for a timed game's clock tick, with
+  // no move — don't nuke the player's in-progress selection or rebuild the
+  // board on those, only on a state that actually changed the position.
+  const fenChanged = !lastState || lastState.fen !== state.fen;
+  lastState = state;
+  clockAnchor = performance.now();
+
+  if (fenChanged) {
+    chess.load(state.fen);
+    renderPos(chess.board(), state.last_move);
+    clearSelection();
+    selectedSq = null;
+  }
+
+  const oppColor = myColor === 'white' ? 'black' : 'white';
+  const rowMe = panel.querySelector('#row-me'), rowOpp = panel.querySelector('#row-opp');
+  if (rowMe) rowMe.classList.toggle('active-turn', state.turn === myColor && state.status === 'active');
+  if (rowOpp) rowOpp.classList.toggle('active-turn', state.turn === oppColor && state.status === 'active');
+
+  const statusLine = panel.querySelector('#status-line');
+  if (statusLine) {
+    if (state.status === 'waiting') statusLine.textContent = 'Waiting for opponent…';
+    else if (state.status === 'active') statusLine.textContent = state.turn === myColor ? 'Your move' : "Opponent's move";
+    else statusLine.textContent = '';
+  }
+
+  const banner = panel.querySelector('#banner');
+  if (banner) {
+    if (state.status === 'finished') {
+      banner.classList.add('on');
+      const iWon = (state.result === '1-0' && myColor === 'white') || (state.result === '0-1' && myColor === 'black');
+      const draw = state.result === '1/2-1/2';
+      panel.querySelector('#banner-result').textContent = draw ? 'Draw' : (iWon ? 'You Won' : 'You Lost');
+      panel.querySelector('#banner-reason').textContent = state.reason || '';
+    } else {
+      banner.classList.remove('on');
+    }
+  }
+  const resignBtn = panel.querySelector('#resign-btn');
+  if (resignBtn) resignBtn.disabled = state.status !== 'active';
+
+  renderClocks();
+}
+
+function renderClocks() {
+  if (!lastState) return;
+  const clockMe = panel.querySelector('#clock-me'), clockOpp = panel.querySelector('#clock-opp');
+  if (!clockMe || !clockOpp) return;
+  if (!lastState.is_timed) {
+    clockMe.textContent = clockOpp.textContent = '∞';
+    clockMe.className = clockOpp.className = 'clock na';
+    return;
+  }
+  const oppColor = myColor === 'white' ? 'black' : 'white';
+  const elapsed = (performance.now() - clockAnchor) / 1000;
+  let cMe = lastState.clocks[myColor], cOpp = lastState.clocks[oppColor];
+  if (lastState.status === 'active') {
+    if (lastState.turn === myColor) cMe = Math.max(0, cMe - elapsed);
+    else cOpp = Math.max(0, cOpp - elapsed);
+  }
+  clockMe.textContent = fmtClock(cMe);
+  clockOpp.textContent = fmtClock(cOpp);
+  clockMe.className = 'clock' + (cMe < 20 ? ' low' : '');
+  clockOpp.className = 'clock' + (cOpp < 20 ? ' low' : '');
+}
+setInterval(renderClocks, 250);
+
+function connectGame(id, token, color) {
+  gameId = id;
+  myColor = color;
+  orientCameraFor(myColor);
+  renderGameShell();
+
+  ws = new WebSocket(`${WS_BASE}/ws/games/${id}?token=${encodeURIComponent(token)}`);
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    if (data.type === 'state') updateGameUI(data);
+  };
+  ws.onclose = () => {
+    const statusLine = panel.querySelector('#status-line');
+    if (statusLine && lastState?.status !== 'finished') statusLine.textContent = 'Connection lost — refresh to reconnect.';
+  };
+}
+
+// ── Click-to-move via raycasting ─────────────────────────────
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+canvas.addEventListener('click', (ev) => {
+  if (!ws || !lastState || lastState.status !== 'active' || lastState.turn !== myColor) return;
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(hitPlanes, false);
+  if (!hits.length) return;
+  const sq = hits[0].object.userData.sq;
+
+  const piece = chess.get(sq);
+  const myPieceColor = myColor === 'white' ? 'w' : 'b';
+
+  if (selectedSq) {
+    const moves = chess.moves({ square: selectedSq, verbose: true });
+    const mv = moves.find(m => m.to === sq);
+    if (mv) {
+      const promotion = mv.flags.includes('p') ? 'q' : undefined;
+      ws.send(JSON.stringify({ type: 'move', from: selectedSq, to: sq, promotion }));
+      selectedSq = null;
+      clearSelection();
+      return;
+    }
+    if (piece && piece.color === myPieceColor) {
+      selectedSq = sq;
+      showLegalMoves(sq);
+      return;
+    }
+    selectedSq = null;
+    clearSelection();
+    return;
+  }
+
+  if (piece && piece.color === myPieceColor) {
+    selectedSq = sq;
+    showLegalMoves(sq);
+  }
+});
+
+// ── Boot ──────────────────────────────────────────────────────
+if (!gameId) {
+  renderLobby();
+} else {
+  const stored = localStorage.getItem(tokenKey(gameId));
+  const storedColor = localStorage.getItem(tokenKey(gameId) + '_color');
+  if (stored && storedColor) {
+    connectGame(gameId, stored, storedColor);
+  } else {
+    renderJoinScreen(gameId);
+  }
+}
+</script>
+</body>
+</html>

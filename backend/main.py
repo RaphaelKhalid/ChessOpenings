@@ -1,14 +1,19 @@
 # FastAPI app for Chess Opening Assistant
+import asyncio
 import os
 import re
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 import psycopg2
-from fastapi import FastAPI, HTTPException
+import chess
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastembed import TextEmbedding
 from google import genai
+
+from games import store, TIME_CONTROLS
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -135,3 +140,152 @@ def ask(body: Question):
         "question": question,
         "sources": sources,
     }
+
+
+# ── Play with a Friend: anonymous, no-account game rooms ──────────────
+
+class CreateGameRequest(BaseModel):
+    time_control: str = "untimed"
+    color: str = "random"  # "white" | "black" | "random"
+
+
+@app.post("/games")
+def create_game(body: CreateGameRequest):
+    if body.time_control not in TIME_CONTROLS:
+        raise HTTPException(status_code=400, detail="Invalid time control")
+    if body.color not in ("white", "black", "random"):
+        raise HTTPException(status_code=400, detail="Invalid color")
+    room, token = store.create(body.time_control, body.color)
+    creator_color = room.color_for_token(token)
+    return {
+        "game_id": room.id,
+        "token": token,
+        "color": creator_color,
+        "time_control": room.time_control_key,
+    }
+
+
+@app.get("/games/{game_id}")
+def get_game(game_id: str):
+    room = store.get(game_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return {
+        "game_id": room.id,
+        "time_control": room.time_control_key,
+        "open_color": room.open_color(),
+        "status": room.status,
+    }
+
+
+@app.post("/games/{game_id}/join")
+def join_game(game_id: str):
+    joined = store.join(game_id)
+    if joined is None:
+        room = store.get(game_id)
+        if room is None:
+            raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=409, detail="Game is already full")
+    room, token, color = joined
+    return {"game_id": room.id, "token": token, "color": color, "time_control": room.time_control_key}
+
+
+async def _broadcast(room):
+    payload = room.state_payload()
+    for ws in list(room.sockets.values()):
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            pass
+
+
+async def _clock_loop(room):
+    """Ticks once a second while a timed game is active, ending it on flag-fall."""
+    try:
+        while room.status == "active" and room.is_timed:
+            await asyncio.sleep(1)
+            clocks = room.live_clocks()
+            mover = room.turn_color()
+            if clocks[mover] <= 0:
+                async with room.lock:
+                    if room.status != "active":
+                        break
+                    room.clocks = clocks
+                    room.status = "finished"
+                    winner = "black" if mover == "white" else "white"
+                    room.result = "0-1" if winner == "black" else "1-0"
+                    room.reason = "timeout"
+                await _broadcast(room)
+                break
+            await _broadcast(room)
+    except asyncio.CancelledError:
+        pass
+
+
+def _finish_from_board_outcome(room):
+    outcome = room.board.outcome()
+    if outcome is None:
+        return
+    room.status = "finished"
+    room.reason = room.outcome_reason(outcome)
+    if outcome.winner is None:
+        room.result = "1/2-1/2"
+    else:
+        room.result = "1-0" if outcome.winner == chess.WHITE else "0-1"
+
+
+@app.websocket("/ws/games/{game_id}")
+async def ws_game(websocket: WebSocket, game_id: str, token: str):
+    room = store.get(game_id)
+    if room is None:
+        await websocket.close(code=4404)
+        return
+    color = room.color_for_token(token)
+    if color is None:
+        await websocket.close(code=4401)
+        return
+
+    await websocket.accept()
+    room.sockets[color] = websocket
+    await websocket.send_json(room.state_payload())
+
+    if (
+        room.status == "active"
+        and room.is_timed
+        and (room.clock_task is None or room.clock_task.done())
+    ):
+        room.clock_task = asyncio.create_task(_clock_loop(room))
+
+    try:
+        while True:
+            msg = await websocket.receive_json()
+            mtype = msg.get("type")
+
+            async with room.lock:
+                if mtype == "move" and room.status == "active" and room.turn_color() == color:
+                    from_sq = msg.get("from")
+                    to_sq = msg.get("to")
+                    promotion = msg.get("promotion")
+                    try:
+                        uci = f"{from_sq}{to_sq}{promotion or ''}"
+                        move = chess.Move.from_uci(uci)
+                    except Exception:
+                        move = None
+                    if move is not None and move in room.board.legal_moves:
+                        if room.is_timed:
+                            elapsed = time.time() - room.turn_started_at
+                            room.clocks[color] = max(0.0, room.clocks[color] - elapsed) + room.increment
+                        room.board.push(move)
+                        room.turn_started_at = time.time()
+                        _finish_from_board_outcome(room)
+
+                elif mtype == "resign" and room.status == "active":
+                    room.status = "finished"
+                    room.reason = "resignation"
+                    winner = "black" if color == "white" else "white"
+                    room.result = "0-1" if winner == "black" else "1-0"
+
+            await _broadcast(room)
+    except WebSocketDisconnect:
+        if room.sockets.get(color) is websocket:
+            del room.sockets[color]

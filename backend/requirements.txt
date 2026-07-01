@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+sentence-transformers
+psycopg2-binary
+pgvector
+supabase
+google-genai

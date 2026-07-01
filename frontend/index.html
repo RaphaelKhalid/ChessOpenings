@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chess Opening Assistant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Georgia, serif;
+      background-color: #1a3a1a;
+      color: #f5f0dc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      background-color: #2d5a2d;
+      border: 2px solid #8b7355;
+      border-radius: 8px;
+      padding: 2.5rem;
+      max-width: 680px;
+      width: 100%;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      color: #f5f0dc;
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.03em;
+    }
+
+    .subtitle {
+      color: #c8b89a;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.9rem;
+      color: #c8b89a;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      border: 1px solid #8b7355;
+      border-radius: 4px;
+      background-color: #1a3a1a;
+      color: #f5f0dc;
+      font-family: Georgia, serif;
+      font-size: 1rem;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus { border-color: #f5f0dc; }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.7rem 2rem;
+      background-color: #8b7355;
+      color: #f5f0dc;
+      border: none;
+      border-radius: 4px;
+      font-family: Georgia, serif;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      letter-spacing: 0.05em;
+    }
+
+    button:hover { background-color: #a08060; }
+    button:disabled { background-color: #5a5a4a; cursor: not-allowed; }
+
+    .answer-box {
+      margin-top: 2rem;
+      padding: 1.2rem;
+      background-color: #1a3a1a;
+      border: 1px solid #8b7355;
+      border-radius: 4px;
+      min-height: 60px;
+      color: #f5f0dc;
+      font-size: 1rem;
+      line-height: 1.6;
+      display: none;
+    }
+
+    .answer-box.visible { display: block; }
+
+    .answer-label {
+      font-size: 0.8rem;
+      color: #c8b89a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.6rem;
+    }
+
+    .error { color: #e07070; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>♟ Chess Opening Assistant</h1>
+    <p class="subtitle">Ask anything about chess openings</p>
+
+    <label for="question">Your question</label>
+    <textarea id="question" placeholder="e.g. What is the Sicilian Defense?"></textarea>
+    <button id="submit" onclick="ask()">Ask</button>
+
+    <div class="answer-box" id="answer-box">
+      <div class="answer-label">Answer</div>
+      <div id="answer-text"></div>
+    </div>
+  </div>
+
+  <script>
+    async function ask() {
+      const btn = document.getElementById("submit");
+      const question = document.getElementById("question").value.trim();
+      const box = document.getElementById("answer-box");
+      const text = document.getElementById("answer-text");
+
+      if (!question) return;
+
+      btn.disabled = true;
+      btn.textContent = "Thinking…";
+      box.classList.remove("visible");
+
+      try {
+        const res = await fetch("http://localhost:8000/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        text.classList.remove("error");
+        text.textContent = data.answer;
+      } catch (err) {
+        text.classList.add("error");
+        text.textContent = `Error: ${err.message}`;
+      } finally {
+        box.classList.add("visible");
+        btn.disabled = false;
+        btn.textContent = "Ask";
+      }
+    }
+
+    document.getElementById("question").addEventListener("keydown", e => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask();
+    });
+  </script>
+</body>
+</html>

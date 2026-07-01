@@ -570,7 +570,7 @@ function renderPos(chessBoard, lastMove) {
 function squareToWorld(sq) {
   const file = sq.charCodeAt(0) - 97; // a=0, b=1...
   const rank = parseInt(sq[1]) - 1;   // 1=0, 8=7
-  return { x: file, z: 7 - rank };
+  return { x: file, z: rank };
 }
 
 // ── Move Stepping ─────────────────────────────────────────────

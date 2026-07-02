@@ -560,7 +560,7 @@
   <div class="right">
     <canvas id="c"></canvas>
     <div class="vignette"></div>
-    <div class="hint">Drag to rotate · Scroll to zoom</div>
+    <div class="hint">Tap a piece to move it · Drag to rotate · Scroll to zoom</div>
     <button class="flip-btn" onclick="flipCamera()" title="Flip view" aria-label="Flip board view">⇅</button>
 
     <div class="placard" id="placard">
@@ -764,6 +764,9 @@ const mHL  = new THREE.MeshStandardMaterial({
   transparent: true, opacity: 0.42,
   depthWrite: false,
 });
+// free-play interaction: green legal-move dots + blue selection square
+const mLegal = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.5, depthWrite: false });
+const mSel   = new THREE.MeshStandardMaterial({ color: 0x3ba7ff, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.45, depthWrite: false });
 
 // cel-shaded (toon) piece materials: a stepped gradient ramp instead of
 // smooth PBR lighting, for a distinct "cool" stylized look
@@ -873,6 +876,35 @@ for (let r = 0; r < 8; r++) {
 const hlG = new THREE.BoxGeometry(0.97, 0.075, 0.97);
 const hl1 = new THREE.Mesh(hlG, mHL); hl1.visible = false; board.add(hl1);
 const hl2 = new THREE.Mesh(hlG, mHL); hl2.visible = false; board.add(hl2);
+
+// ── Free-play selection + legal-move markers ─────────────────
+const selHl = new THREE.Mesh(hlG, mSel); selHl.visible = false; board.add(selHl);
+
+// legal-move destination markers, pre-allocated pool
+const legalDotG = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 20);
+const legalHighlights = [];
+for (let i = 0; i < 28; i++) {
+  const m = new THREE.Mesh(legalDotG, mLegal);
+  m.visible = false;
+  board.add(m);
+  legalHighlights.push(m);
+}
+
+// invisible-but-raycastable hit planes, one per square, tagged with its
+// algebraic name — used to translate a tap into a board square.
+const hitPlaneG = new THREE.PlaneGeometry(1, 1);
+const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+const hitPlanes = [];
+for (let f = 0; f < 8; f++) {
+  for (let rk = 1; rk <= 8; rk++) {
+    const m = new THREE.Mesh(hitPlaneG, hitMat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(f, 0.09, rk - 1);
+    m.userData.sq = String.fromCharCode(97 + f) + rk;
+    board.add(m);
+    hitPlanes.push(m);
+  }
+}
 
 // ── Piece Profiles (LatheGeometry) ───────────────────────────
 function v2(x, y) { return new THREE.Vector2(x, y); }
@@ -992,6 +1024,28 @@ function squareToWorld(sq) {
   const file = sq.charCodeAt(0) - 97; // a=0, b=1...
   const rank = parseInt(sq[1]) - 1;   // 1=0, 8=7
   return { x: file, z: rank };
+}
+
+// ── Free-play selection helpers ───────────────────────────────
+function clearSelection() {
+  selHl.visible = false;
+  legalHighlights.forEach(h => h.visible = false);
+}
+
+function showLegalMoves(sq) {
+  clearSelection();
+  const p = squareToWorld(sq);
+  selHl.position.set(p.x, BOARD_Y, p.z);
+  selHl.visible = true;
+  const legal = chess.moves({ square: sq, verbose: true });
+  legal.forEach((mv, i) => {
+    if (i >= legalHighlights.length) return;
+    const w = squareToWorld(mv.to);
+    const h = legalHighlights[i];
+    h.position.set(w.x, BOARD_Y + 0.03, w.z);
+    h.visible = true;
+  });
+  return legal;
 }
 
 // purely visual tween: slides `obj` from fromSq to toSq over ~280ms with a
@@ -1260,9 +1314,16 @@ function renderMoveStrip() {
 
 // ── Move Stepping ─────────────────────────────────────────────
 let moves = [], idx = 0, chess = null;
+let openingName = null;   // name of the currently loaded opening (null in pure free play)
+let sandbox = false;      // true once the user has hand-played a move off the loaded line
+let selectedSq = null;    // square currently picked up in free play, or null
 
 function loadOpening(name, pgn) {
   stopAutoplay();
+  selectedSq = null;
+  clearSelection();
+  openingName = name;
+  sandbox = false;
   document.getElementById('opname').textContent = name;
   const placard = document.getElementById('placard');
   if (placard) placard.classList.add('on');
@@ -1274,6 +1335,25 @@ function loadOpening(name, pgn) {
   renderPos(chess.board(), null);
   syncUI();
 }
+
+// Reset the board to the empty starting position and drop any free-play line.
+// Called when the user submits a question so each prompt starts clean.
+function resetBoard() {
+  stopAutoplay();
+  selectedSq = null;
+  clearSelection();
+  openingName = null;
+  sandbox = false;
+  moves = [];
+  idx = 0;
+  chess = new Chess();
+  document.getElementById('opname').textContent = 'Select an opening';
+  const placard = document.getElementById('placard');
+  if (placard) placard.classList.remove('on');
+  renderPos(chess.board(), null);
+  syncUI();
+}
+window.resetBoard = resetBoard;
 
 function syncUI() {
   const el = document.getElementById('mvdisp');
@@ -1294,6 +1374,8 @@ function syncUI() {
 
 function jumpToPly(n) {
   if (!chess) return;
+  selectedSq = null;
+  clearSelection();
   idx = Math.max(0, Math.min(n, moves.length));
   chess = new Chess();
   for (let i = 0; i < idx; i++) chess.move(moves[i].san);
@@ -1344,6 +1426,70 @@ function resize() {
     camera.updateProjectionMatrix();
   }
 }
+
+// ── Free play: tap a piece, then a highlighted square to move it ──
+// Both sides are movable in turn (chess.js only generates legal moves for
+// the side to move), giving a self-playing analysis sandbox. A hand-played
+// move extends the current line — or branches it if we're mid-replay — so
+// the move strip and ◀ ▶ navigation keep working over the new line.
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function applyManualMove(from, to) {
+  const legal = chess.moves({ square: from, verbose: true });
+  const mv = legal.find(m => m.to === to);
+  if (!mv) return false;
+  const promotion = mv.flags.includes('p') ? 'q' : undefined; // auto-queen
+  const result = chess.move({ from, to, promotion });
+  if (!result) return false;
+  stopAutoplay();
+  moves = moves.slice(0, idx); // drop any un-played "future" of a replayed line
+  moves.push(result);
+  idx = moves.length;
+  sandbox = true;
+  document.getElementById('opname').textContent =
+    openingName ? `${openingName} — your line` : 'Free play';
+  document.getElementById('placard').classList.add('on');
+  renderPos(chess.board(), result); // animates the moved piece via the tween path
+  syncUI();
+  return true;
+}
+
+function handleBoardTap(clientX, clientY) {
+  if (flightActive || !chess) return;
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(hitPlanes, false);
+  if (!hits.length) return;
+  const sq = hits[0].object.userData.sq;
+
+  const piece = chess.get(sq);
+  const mover = chess.turn(); // 'w' | 'b' — whose move it is
+
+  if (selectedSq) {
+    if (applyManualMove(selectedSq, sq)) { selectedSq = null; clearSelection(); return; }
+    if (piece && piece.color === mover) { selectedSq = sq; showLegalMoves(sq); return; }
+    selectedSq = null; clearSelection();
+    return;
+  }
+  if (piece && piece.color === mover) { selectedSq = sq; showLegalMoves(sq); }
+}
+
+// Distinguish a tap from an orbit-drag: only treat pointerup as a tap if the
+// pointer barely moved since pointerdown (so rotating the board never selects).
+let tapDownX = 0, tapDownY = 0, tapTracking = false;
+canvas.addEventListener('pointerdown', (e) => {
+  tapDownX = e.clientX; tapDownY = e.clientY; tapTracking = true;
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (!tapTracking) return;
+  tapTracking = false;
+  if (Math.hypot(e.clientX - tapDownX, e.clientY - tapDownY) > 6) return; // was a drag
+  handleBoardTap(e.clientX, e.clientY);
+});
+canvas.addEventListener('pointercancel', () => { tapTracking = false; });
 
 // ── Init & Loop ───────────────────────────────────────────────
 chess = new Chess();
@@ -1541,6 +1687,7 @@ window.ask = async () => {
   ac.classList.remove('on');
   ss.style.display = 'block';
   sl.innerHTML = skeletonCardsHtml(3);
+  window.resetBoard?.(); // clear any free-play tinkering before the new query
 
   try {
     const res = await fetch(`${API}/ask`, {

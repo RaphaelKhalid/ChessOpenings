@@ -581,6 +581,24 @@ const panel = document.getElementById('panel');
 
 function tokenKey(id) { return `chess_play_token_${id}`; }
 
+// The free-tier backend can spin down after inactivity; a cold start can
+// take 30-60s. Fetch with a generous timeout and surface a "waking up"
+// hint via onSlow() if it's taking a while, instead of hanging silently.
+async function apiFetch(url, options, onSlow) {
+  const slowTimer = setTimeout(() => onSlow?.(), 4000);
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 60000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Server took too long to respond. Please try again.');
+    throw new Error('Network error — check your connection and try again.');
+  } finally {
+    clearTimeout(slowTimer);
+    clearTimeout(abortTimer);
+  }
+}
+
 function fmtClock(seconds) {
   if (seconds === null || seconds === undefined) return '—:—';
   seconds = Math.max(0, seconds);
@@ -632,10 +650,10 @@ function renderLobby() {
     const btn = panel.querySelector('#create-btn');
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const res = await fetch(`${API}/games`, {
+      const res = await apiFetch(`${API}/games`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ time_control: tc, color }),
-      });
+      }, () => btn.textContent = 'Waking up server… (first request can take up to a minute)');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       localStorage.setItem(tokenKey(data.game_id), data.token);
@@ -653,7 +671,9 @@ async function renderJoinScreen(id) {
   panel.innerHTML = `<div class="center-msg">Loading game…</div>`;
   let info;
   try {
-    const res = await fetch(`${API}/games/${id}`);
+    const res = await apiFetch(`${API}/games/${id}`, {}, () => {
+      panel.innerHTML = `<div class="center-msg">Waking up server… (first request can take up to a minute)</div>`;
+    });
     if (!res.ok) throw new Error(res.status === 404 ? 'Game not found' : `HTTP ${res.status}`);
     info = await res.json();
   } catch (e) {
@@ -676,7 +696,8 @@ async function renderJoinScreen(id) {
     const btn = panel.querySelector('#join-btn');
     btn.disabled = true; btn.textContent = 'Joining…';
     try {
-      const res = await fetch(`${API}/games/${id}/join`, { method: 'POST' });
+      const res = await apiFetch(`${API}/games/${id}/join`, { method: 'POST' },
+        () => btn.textContent = 'Waking up server… (first request can take up to a minute)');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       localStorage.setItem(tokenKey(id), data.token);

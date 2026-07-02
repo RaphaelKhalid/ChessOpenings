@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Chess Opening Assistant</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:       #0a0a0f;
@@ -23,13 +26,24 @@
 
     html, body { height: 100%; overflow: hidden; }
 
+    @keyframes pageFade { from { opacity: 0; } to { opacity: 1; } }
+
     body {
       background: var(--bg);
       color: var(--cream);
       font-family: 'Inter', system-ui, sans-serif;
       display: flex;
       flex-direction: column;
+      animation: pageFade .4s ease both;
     }
+
+    :focus-visible { outline: 2px solid var(--gold-dim); outline-offset: 2px; }
+
+    /* ── shared thin scrollbar ── */
+    .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .scroll-thin::-webkit-scrollbar { width: 3px; height: 3px; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .scroll-thin::-webkit-scrollbar-track { background: transparent; }
 
     /* ── Nav ── */
     nav {
@@ -54,9 +68,11 @@
     .navlink {
       font-size: 0.78rem; color: var(--muted); text-decoration: none;
       border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.7rem;
-      transition: all .15s;
+      transition: color .15s, border-color .15s, background-color .15s, transform .15s;
+      touch-action: manipulation;
     }
     .navlink:hover { color: var(--cream); border-color: var(--gold-dim); }
+    .navlink:active { transform: scale(.97); }
 
     .status {
       display: flex;
@@ -92,8 +108,6 @@
       padding: 1.25rem;
       gap: 1.1rem;
     }
-    .left::-webkit-scrollbar { width: 3px; }
-    .left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .lbl {
       font-size: 0.67rem;
@@ -108,6 +122,9 @@
     .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .chip {
       padding: 0.3rem 0.65rem;
+      min-height: 32px;
+      display: inline-flex;
+      align-items: center;
       border: 1px solid var(--border);
       border-radius: 100px;
       font-size: 0.75rem;
@@ -115,20 +132,22 @@
       cursor: pointer;
       background: transparent;
       font-family: inherit;
-      transition: all 0.15s;
+      transition: color .15s, border-color .15s, background-color .15s, transform .15s;
+      touch-action: manipulation;
     }
     .chip:hover {
       border-color: var(--gold-dim);
       color: var(--cream);
       background: rgba(212,175,55,0.07);
     }
+    .chip:active { transform: scale(.97); }
 
     /* input */
     .input-wrap { position: relative; }
     textarea {
       width: 100%;
       min-height: 76px;
-      padding: 0.8rem 3rem 0.8rem 0.9rem;
+      padding: 0.8rem 3.4rem 0.8rem 0.9rem;
       background: var(--surf2);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -145,19 +164,21 @@
 
     .send {
       position: absolute;
-      right: 0.55rem;
-      bottom: 0.55rem;
-      width: 34px; height: 34px;
-      border-radius: 6px;
+      right: 0.5rem;
+      bottom: 0.5rem;
+      width: 44px; height: 44px;
+      border-radius: 8px;
       background: var(--gold);
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s, opacity 0.15s;
+      transition: background 0.15s, opacity 0.15s, transform .15s;
+      touch-action: manipulation;
     }
     .send:hover { background: #e8c94a; }
+    .send:active { transform: scale(.97); }
     .send:disabled { opacity: 0.35; cursor: not-allowed; }
     .send svg { width: 15px; height: 15px; fill: #0a0a0f; }
 
@@ -168,6 +189,7 @@
       gap: 0.5rem;
       font-size: 0.8rem;
       color: var(--muted);
+      flex-wrap: wrap;
     }
     .thinking.on { display: flex; }
     .dots { display: flex; gap: 3px; }
@@ -183,8 +205,13 @@
       0%,80%,100% { opacity:.2; transform:scale(.8); }
       40%          { opacity:1;  transform:scale(1);  }
     }
+    .think-elapsed { color: var(--muted); opacity: .75; }
 
     /* answer */
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
     .answer-card {
       background: var(--surf);
       border: 1px solid var(--border);
@@ -192,24 +219,49 @@
       padding: 0.9rem;
       display: none;
     }
-    .answer-card.on { display: block; }
+    .answer-card.on { display: block; animation: cardIn .25s ease both; }
     .answer-text { font-size: 0.88rem; line-height: 1.7; }
+    .answer-text strong, .answer-text b { color: var(--gold); font-weight: 600; }
+    .answer-text em, .answer-text i { color: var(--cream); opacity: .92; font-style: italic; }
+    .answer-text code {
+      font-family: 'SF Mono', Consolas, monospace;
+      background: var(--surf2);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+    .answer-text ul { padding-left: 1.1em; margin: 0.4em 0; }
+    .answer-text li { margin-bottom: 0.25em; }
+    .answer-text p { margin-bottom: 0.5em; }
+    .answer-text p:last-child { margin-bottom: 0; }
+    .answer-text h3, .answer-text h4 {
+      font-family: 'Cinzel', serif; color: var(--gold);
+      font-size: 0.95em; margin: 0.6em 0 0.3em;
+    }
     .err { color: var(--red); }
 
     /* source cards */
+    @keyframes cardStagger {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
     .source-card {
       display: flex;
       align-items: center;
       gap: 0.7rem;
       padding: 0.65rem 0.8rem;
+      min-height: 48px;
       background: var(--surf2);
       border: 1px solid var(--border);
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: border-color .15s, background-color .15s, transform .15s;
+      animation: cardStagger .3s ease both;
+      touch-action: manipulation;
     }
     .source-card:hover  { border-color: var(--gold-dim); background: rgba(212,175,55,.04); }
     .source-card.active { border-color: var(--gold);     background: rgba(212,175,55,.09); }
+    .source-card:active { transform: scale(.97); }
 
     .eco {
       font-family: 'Cinzel', serif;
@@ -222,6 +274,7 @@
       padding: 0.18rem 0.4rem;
       letter-spacing: .04em;
       flex-shrink: 0;
+      transition: color .15s, border-color .15s;
     }
     .src-name { font-size: 0.8rem; color: var(--cream); }
     .src-pgn  {
@@ -232,8 +285,52 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .sim-bar { width: 24px; height: 3px; background: var(--border); border-radius: 2px; flex-shrink:0; }
-    .sim-fill { height: 100%; background: var(--gold); border-radius: 2px; }
+
+    /* similarity ring */
+    .sim-ring { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
+    .sim-ring svg { position: absolute; inset: 0; }
+    .sim-pct {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.55rem; color: var(--cream); font-family: 'SF Mono', Consolas, monospace;
+    }
+
+    /* skeleton loading cards */
+    .skeleton-card { cursor: default; animation: cardStagger .3s ease both; }
+    .skeleton-shimmer {
+      background: linear-gradient(90deg, var(--surf2) 25%, rgba(255,255,255,.07) 50%, var(--surf2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .skel-eco  { width: 30px; height: 18px; }
+    .skel-line1 { height: 11px; width: 70%; margin-bottom: 7px; }
+    .skel-line2 { height: 9px;  width: 45%; }
+
+    /* decision tree */
+    #treewrap { display: none; }
+    .tree-scroll {
+      overflow-x: auto;
+      overflow-y: hidden;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surf);
+      padding: 0.6rem 0.4rem;
+    }
+    .tree-scroll svg { display: block; }
+    .tree-scroll text {
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 0.72rem;
+      pointer-events: none;
+    }
+    .tree-scroll text.tleaf { font-size: 0.6rem; fill: var(--gold); }
+    .tnode { cursor: pointer; touch-action: manipulation; }
+    .tnode .tchip { transition: filter .15s, stroke .15s, stroke-width .15s; }
+    .tnode:hover .tchip { filter: brightness(1.3); }
+    .tnode.active .tchip { stroke: var(--gold); stroke-width: 2; }
+    .tedge { transition: stroke .15s, stroke-width .15s; }
+    .tedge.active { stroke: var(--gold) !important; stroke-width: 2; }
 
     /* ── Right Panel ── */
     .right {
@@ -243,34 +340,56 @@
     }
     #c { width: 100%; height: 100%; display: block; }
 
-    /* board controls overlay */
-    .controls {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 0.75rem 1.5rem 1rem;
-      background: linear-gradient(transparent, rgba(10,10,15,.92));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.9rem;
+    .vignette {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(10,10,15,.55) 100%);
     }
-    .ctrl {
-      width: 34px; height: 34px;
+
+    .hint {
+      position: absolute;
+      top: 0.75rem; right: 1rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .flip-btn {
+      position: absolute;
+      top: 2.3rem; right: 1rem;
+      width: 36px; height: 36px;
       border-radius: 50%;
       background: rgba(255,255,255,.05);
       border: 1px solid var(--border);
       color: var(--cream);
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      transition: background-color .15s, border-color .15s, transform .15s;
+      touch-action: manipulation;
+      z-index: 5;
     }
-    .ctrl:hover:not(:disabled) { background: rgba(212,175,55,.15); border-color: var(--gold-dim); }
-    .ctrl:disabled { opacity: 0.25; cursor: not-allowed; }
+    .flip-btn:hover { background: rgba(212,175,55,.15); border-color: var(--gold-dim); }
+    .flip-btn:active { transform: scale(.97); }
 
-    .move-info { text-align: center; min-width: 190px; }
+    /* top-center opening placard */
+    .placard {
+      position: absolute;
+      top: 0.75rem; left: 50%;
+      transform: translateX(-50%);
+      max-width: 78%;
+      text-align: center;
+      background: rgba(10,10,15,.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem 1.1rem;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+    .placard.on { opacity: 1; }
     .op-name {
       font-family: 'Cinzel', serif;
       font-size: 0.82rem;
@@ -282,13 +401,74 @@
     }
     .move-display { font-size: 0.74rem; color: var(--muted); font-family: monospace; }
 
-    .hint {
+    /* move pill strip */
+    .move-strip {
       position: absolute;
-      top: 0.75rem; right: 1rem;
-      font-size: 0.68rem;
-      color: var(--muted);
-      pointer-events: none;
+      bottom: calc(88px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 70%;
+      display: none;
+      align-items: center;
+      gap: 0.3rem;
+      overflow-x: auto;
+      padding: 0.25rem 0.2rem;
     }
+    .movepill {
+      flex-shrink: 0;
+      min-height: 32px;
+      padding: 0.3rem 0.55rem;
+      display: flex; align-items: center;
+      border-radius: 6px;
+      font-family: 'SF Mono', Consolas, monospace;
+      font-size: 0.72rem;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      color: var(--cream);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+      touch-action: manipulation;
+    }
+    .movepill:hover { border-color: var(--gold-dim); }
+    .movepill:active { transform: scale(.97); }
+    .movepill.num { background: none; border: none; color: var(--muted); cursor: default; padding: 0.3rem 0.1rem; min-height: auto; }
+    .movepill.current { background: var(--gold); color: #1a1408; border-color: var(--gold); font-weight: 600; }
+
+    /* floating glass control dock */
+    .dock {
+      position: absolute;
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(17,17,24,.72);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 30px rgba(0,0,0,.45);
+    }
+    .ctrl {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      color: var(--cream);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      transition: background-color .15s, border-color .15s, transform .15s, opacity .15s;
+      touch-action: manipulation;
+    }
+    .ctrl:hover:not(:disabled) { background: rgba(212,175,55,.15); border-color: var(--gold-dim); }
+    .ctrl:active:not(:disabled) { transform: scale(.97); }
+    .ctrl:disabled { opacity: 0.25; cursor: not-allowed; }
 
     /* ── Mobile / portrait: stack chat above board ── */
     @media (max-width: 768px) {
@@ -312,6 +492,7 @@
         height: 60vh;
         min-height: 340px;
       }
+      .move-strip { max-width: 88%; }
     }
   </style>
 </head>
@@ -330,7 +511,7 @@
 
 <main>
   <!-- ── Left ── -->
-  <div class="left">
+  <div class="left scroll-thin">
 
     <div>
       <div class="lbl">Try asking</div>
@@ -355,7 +536,7 @@
 
     <div class="thinking" id="thinking">
       <div class="dots"><span></span><span></span><span></span></div>
-      <span>Analyzing…</span>
+      <span id="thinkMsg">Analyzing…</span><span class="think-elapsed" id="thinkElapsed"></span>
     </div>
 
     <div class="answer-card" id="ac">
@@ -368,19 +549,31 @@
       <div style="display:flex;flex-direction:column;gap:.45rem" id="sl"></div>
     </div>
 
+    <div id="treewrap">
+      <div class="lbl">Decision tree — tap a move to explore</div>
+      <div class="tree-scroll scroll-thin"></div>
+    </div>
+
   </div>
 
   <!-- ── Right: 3D Board ── -->
   <div class="right">
     <canvas id="c"></canvas>
+    <div class="vignette"></div>
     <div class="hint">Drag to rotate · Scroll to zoom</div>
-    <div class="controls">
+    <button class="flip-btn" onclick="flipCamera()" title="Flip view" aria-label="Flip board view">⇅</button>
+
+    <div class="placard" id="placard">
+      <div class="op-name" id="opname">Select an opening</div>
+      <div class="move-display" id="mvdisp">—</div>
+    </div>
+
+    <div class="move-strip scroll-thin" id="movestrip"></div>
+
+    <div class="dock">
       <button class="ctrl" id="b0" onclick="goStart()" title="Start">⏮</button>
       <button class="ctrl" id="b1" onclick="goBack()"  title="Back">◀</button>
-      <div class="move-info">
-        <div class="op-name" id="opname">Select an opening</div>
-        <div class="move-display" id="mvdisp">—</div>
-      </div>
+      <button class="ctrl" id="bplay" onclick="toggleAutoplay()" title="Autoplay">▶︎</button>
       <button class="ctrl" id="b2" onclick="goFwd()"   title="Next">▶</button>
       <button class="ctrl" id="b3" onclick="goEnd()"   title="End">⏭</button>
     </div>
@@ -421,7 +614,8 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0a0f, 0.028);
 
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 120);
-camera.position.set(3.5, 8.5, 11);
+// Greet from White's side of the board by default.
+camera.position.set(3.5, 8.5, -4);
 camera.lookAt(3.5, 0, 3.5);
 
 const controls = new OrbitControls(camera, canvas);
@@ -432,6 +626,68 @@ controls.minDistance = 4;
 controls.maxDistance = 22;
 controls.maxPolarAngle = Math.PI / 2.05;
 controls.update();
+
+// ── Ambient idle camera drift (stops permanently on first canvas interaction) ──
+let idleStopped = false;
+let idleStart = performance.now();
+let idleBaseAngle, idleRadius, idleHeight;
+{
+  const rel = camera.position.clone().sub(controls.target);
+  idleRadius = Math.sqrt(rel.x * rel.x + rel.z * rel.z);
+  idleHeight = rel.y;
+  idleBaseAngle = Math.atan2(rel.z, rel.x);
+}
+canvas.addEventListener('pointerdown', () => { idleStopped = true; }, { once: true });
+canvas.addEventListener('wheel', () => { idleStopped = true; }, { once: true, passive: true });
+
+// ── Camera flip (fly to the mirrored side) ───────────────────
+let flightActive = false;
+let currentCameraSide = 'white'; // matches default (3.5, 8.5, -4)
+
+function flipCamera() {
+  if (flightActive) return;
+  flightActive = true;
+  controls.enabled = false;
+
+  const target = controls.target.clone();
+  const rel = camera.position.clone().sub(target);
+  const radius = Math.sqrt(rel.x * rel.x + rel.z * rel.z);
+  const height = rel.y;
+  const startAngle = Math.atan2(rel.z, rel.x);
+
+  currentCameraSide = currentCameraSide === 'white' ? 'black' : 'white';
+  const canonicalAngle = currentCameraSide === 'white' ? -Math.PI / 2 : Math.PI / 2;
+  let delta = (((canonicalAngle - startAngle + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  if (Math.abs(delta) < 0.01) delta = Math.PI;
+
+  const dur = 800;
+  const t0 = performance.now();
+
+  function step(now) {
+    const t = Math.min(1, (now - t0) / dur);
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // ease-in-out cubic
+    const ang = startAngle + delta * e;
+    camera.position.set(
+      target.x + Math.cos(ang) * radius,
+      target.y + height,
+      target.z + Math.sin(ang) * radius
+    );
+    camera.lookAt(target);
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      flightActive = false;
+      controls.enabled = true;
+      controls.update();
+      idleBaseAngle = canonicalAngle;
+      idleRadius = radius;
+      idleHeight = height;
+      idleStart = performance.now();
+    }
+  }
+  requestAnimationFrame(step);
+}
+window.flipCamera = flipCamera;
 
 // ── Cel-shaded ink pass ─────────────────────────────────────────
 // Detects *geometric* edges (surface-normal discontinuities — piece
@@ -725,15 +981,61 @@ function makePiece(type, color) {
 // ── Board State ───────────────────────────────────────────────
 const BOARD_Y = 0.07; // top of squares
 let pieces = [];
+const activeTweens = [];
 
 function clearPieces() {
   pieces.forEach(p => board.remove(p));
   pieces = [];
 }
 
+function squareToWorld(sq) {
+  const file = sq.charCodeAt(0) - 97; // a=0, b=1...
+  const rank = parseInt(sq[1]) - 1;   // 1=0, 8=7
+  return { x: file, z: rank };
+}
+
+// purely visual tween: slides `obj` from fromSq to toSq over ~280ms with a
+// small parabolic hop. Never affects game state — snapped to final position
+// on completion, or instantly superseded the next time renderPos rebuilds.
+function startTween(obj, fromSq, toSq, hopHeight) {
+  const from = squareToWorld(fromSq);
+  const to = squareToWorld(toSq);
+  obj.position.set(from.x, BOARD_Y, from.z);
+  activeTweens.push({
+    obj, fromX: from.x, fromZ: from.z, toX: to.x, toZ: to.z,
+    baseY: BOARD_Y, hopHeight, start: performance.now(), dur: 280,
+  });
+}
+
+function updateTweens(now) {
+  for (let i = activeTweens.length - 1; i >= 0; i--) {
+    const tw = activeTweens[i];
+    const t = Math.min(1, (now - tw.start) / tw.dur);
+    const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    tw.obj.position.x = tw.fromX + (tw.toX - tw.fromX) * e;
+    tw.obj.position.z = tw.fromZ + (tw.toZ - tw.fromZ) * e;
+    tw.obj.position.y = tw.baseY + Math.sin(Math.min(t, 1) * Math.PI) * tw.hopHeight;
+    if (t >= 1) {
+      tw.obj.position.set(tw.toX, tw.baseY, tw.toZ);
+      activeTweens.splice(i, 1);
+    }
+  }
+}
+
 function renderPos(chessBoard, lastMove) {
   clearPieces();
   hl1.visible = hl2.visible = false;
+  activeTweens.length = 0;
+
+  // castling: also animate the rook, if this move is a castle
+  let rookFrom = null, rookTo = null;
+  if (lastMove && lastMove.flags && lastMove.flags.includes('k')) {
+    rookFrom = lastMove.color === 'w' ? 'h1' : 'h8';
+    rookTo   = lastMove.color === 'w' ? 'f1' : 'f8';
+  } else if (lastMove && lastMove.flags && lastMove.flags.includes('q')) {
+    rookFrom = lastMove.color === 'w' ? 'a1' : 'a8';
+    rookTo   = lastMove.color === 'w' ? 'd1' : 'd8';
+  }
 
   if (lastMove) {
     // from/to are in chess notation: "e2" → col 4 file, rank 2
@@ -743,6 +1045,7 @@ function renderPos(chessBoard, lastMove) {
     hl2.position.set(t.x, BOARD_Y, t.z); hl2.visible = true;
   }
 
+  let destGroup = null, rookGroup = null;
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const sq = chessBoard[r][c];
@@ -752,21 +1055,217 @@ function renderPos(chessBoard, lastMove) {
       p.position.set(c, BOARD_Y, worldZ);
       board.add(p);
       pieces.push(p);
+      const sqName = String.fromCharCode(97 + c) + (8 - r);
+      if (lastMove && sqName === lastMove.to) destGroup = p;
+      if (rookTo && sqName === rookTo) rookGroup = p;
     }
+  }
+
+  if (lastMove && destGroup) {
+    const hopH = lastMove.piece === 'n' ? 0.6 : 0.35;
+    startTween(destGroup, lastMove.from, lastMove.to, hopH);
+  }
+  if (rookFrom && rookGroup) {
+    startTween(rookGroup, rookFrom, rookTo, 0.35);
   }
 }
 
-function squareToWorld(sq) {
-  const file = sq.charCodeAt(0) - 97; // a=0, b=1...
-  const rank = parseInt(sq[1]) - 1;   // 1=0, 8=7
-  return { x: file, z: rank };
+// ── Decision tree (built from the retrieved sources' shared PGN prefixes) ──
+function escXml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function buildTreeData(sources) {
+  const root = { san: null, depth: 0, children: new Map(), through: [], leaves: [] };
+  for (const s of sources) {
+    let hist;
+    try {
+      const tmp = new Chess();
+      tmp.load_pgn(s.pgn);
+      hist = tmp.history({ verbose: true });
+    } catch (err) { continue; }
+    if (!hist.length) continue;
+    let node = root;
+    for (let i = 0; i < hist.length; i++) {
+      const san = hist[i].san;
+      if (!node.children.has(san)) {
+        node.children.set(san, { san, depth: i + 1, children: new Map(), through: [], leaves: [] });
+      }
+      node = node.children.get(san);
+      node.through.push(hist);
+    }
+    node.leaves.push({ eco: s.eco, name: s.name });
+  }
+  return root;
+}
+
+let nodeById = new Map();
+function assignIds(root) {
+  nodeById = new Map();
+  let seq = 0;
+  (function walk(node) {
+    for (const child of node.children.values()) {
+      seq += 1;
+      child.id = seq;
+      nodeById.set(seq, child);
+      walk(child);
+    }
+  })(root);
+}
+
+function layoutTree(root) {
+  let leafY = 0;
+  const positions = new Map();
+  function visit(node) {
+    if (node.children.size === 0) {
+      const y = leafY * 34 + 17;
+      leafY += 1;
+      positions.set(node, { x: node.depth * 72, y });
+      return y;
+    }
+    const ys = [];
+    for (const child of node.children.values()) ys.push(visit(child));
+    const y = ys.reduce((a, b) => a + b, 0) / ys.length;
+    positions.set(node, { x: node.depth * 72, y });
+    return y;
+  }
+  visit(root);
+  return positions;
+}
+
+function renderDecisionTree(root, positions) {
+  const wrap = document.getElementById('treewrap');
+  const scrollEl = wrap.querySelector('.tree-scroll');
+  let maxX = 0, maxY = 0;
+  for (const [, p] of positions) { maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+  maxX += 160; maxY += 24;
+
+  let edgesSvg = '';
+  let nodesSvg = '';
+
+  function walk(node) {
+    const p0 = positions.get(node);
+    for (const child of node.children.values()) {
+      const p1 = positions.get(child);
+      const midX = (p0.x + p1.x) / 2;
+      edgesSvg += `<path class="tedge" data-id="${child.id}" d="M ${p0.x} ${p0.y} C ${midX} ${p0.y}, ${midX} ${p1.y}, ${p1.x} ${p1.y}" fill="none" stroke="#252530" stroke-width="1.5"/>`;
+
+      const isWhite = child.depth % 2 === 1;
+      const fill = isWhite ? '#18181f' : 'rgba(240,234,214,.92)';
+      const textColor = isWhite ? '#f0ead6' : '#18181f';
+      const label = escXml(child.san);
+      const w = Math.max(34, child.san.length * 7.5 + 16);
+
+      nodesSvg += `<g class="tnode" data-id="${child.id}" tabindex="0" role="button" aria-label="${label}">` +
+        `<rect class="thit" x="${p1.x - Math.max(20, w / 2)}" y="${p1.y - 14}" width="${Math.max(40, w)}" height="28" fill="transparent"/>` +
+        `<rect class="tchip" x="${p1.x - w / 2}" y="${p1.y - 11}" width="${w}" height="22" rx="8" fill="${fill}" stroke="#252530"/>` +
+        `<text x="${p1.x}" y="${p1.y + 4}" text-anchor="middle" fill="${textColor}">${label}</text>` +
+        `</g>`;
+
+      if (child.leaves.length) {
+        const label2 = truncate(child.leaves.map(l => l.name).join(' / '), 22);
+        nodesSvg += `<text class="tleaf" x="${p1.x + w / 2 + 8}" y="${p1.y + 4}">${escXml(label2)}</text>`;
+      }
+
+      walk(child);
+    }
+  }
+  walk(root);
+
+  scrollEl.innerHTML = `<svg width="${maxX}" height="${maxY}" viewBox="0 0 ${maxX} ${maxY}">${edgesSvg}${nodesSvg}</svg>`;
+  wrap.style.display = 'block';
+
+  scrollEl.onclick = (e) => {
+    const g = e.target.closest('.tnode');
+    if (!g) return;
+    jumpToTreeNode(Number(g.dataset.id));
+  };
+  scrollEl.onkeydown = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const g = e.target.closest?.('.tnode');
+    if (!g) return;
+    e.preventDefault();
+    jumpToTreeNode(Number(g.dataset.id));
+  };
+
+  updateTreeHighlight();
+}
+
+let treeRoot = null;
+function showDecisionTree(sources) {
+  const wrap = document.getElementById('treewrap');
+  if (!sources || !sources.length) { wrap.style.display = 'none'; treeRoot = null; return; }
+  treeRoot = buildTreeData(sources);
+  if (!treeRoot.children.size) { wrap.style.display = 'none'; treeRoot = null; return; }
+  assignIds(treeRoot);
+  const positions = layoutTree(treeRoot);
+  renderDecisionTree(treeRoot, positions);
+}
+window.buildDecisionTree = showDecisionTree;
+
+function jumpToTreeNode(id) {
+  const node = nodeById.get(id);
+  if (!node || !node.through.length) return;
+  stopAutoplay();
+  let longest = node.through[0];
+  for (const h of node.through) if (h.length > longest.length) longest = h;
+  moves = longest;
+  jumpToPly(node.depth);
+}
+
+function updateTreeHighlight() {
+  const wrap = document.getElementById('treewrap');
+  if (!wrap) return;
+  const scrollEl = wrap.querySelector('.tree-scroll');
+  if (!scrollEl) return;
+  scrollEl.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+  if (!treeRoot) return;
+  let node = treeRoot;
+  for (let i = 0; i < idx; i++) {
+    const san = moves[i]?.san;
+    if (!san || !node.children.has(san)) break;
+    node = node.children.get(san);
+    const g = scrollEl.querySelector(`.tnode[data-id="${node.id}"]`);
+    if (g) g.classList.add('active');
+    const e = scrollEl.querySelector(`.tedge[data-id="${node.id}"]`);
+    if (e) e.classList.add('active');
+  }
+}
+
+// ── Move pill strip ────────────────────────────────────────────
+const moveStripEl = document.getElementById('movestrip');
+moveStripEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.movepill:not(.num)');
+  if (!btn) return;
+  stopAutoplay();
+  jumpToPly(Number(btn.dataset.ply));
+});
+
+function renderMoveStrip() {
+  if (!moves.length) { moveStripEl.innerHTML = ''; moveStripEl.style.display = 'none'; return; }
+  moveStripEl.style.display = 'flex';
+  let html = '';
+  for (let i = 0; i < moves.length; i++) {
+    if (i % 2 === 0) html += `<span class="movepill num">${i / 2 + 1}.</span>`;
+    const cur = (i + 1 === idx) ? ' current' : '';
+    html += `<button type="button" class="movepill${cur}" data-ply="${i + 1}">${escXml(moves[i].san)}</button>`;
+  }
+  moveStripEl.innerHTML = html;
+  const cur = moveStripEl.querySelector('.movepill.current');
+  if (cur) cur.scrollIntoView({ inline: 'center', behavior: 'smooth', block: 'nearest' });
 }
 
 // ── Move Stepping ─────────────────────────────────────────────
 let moves = [], idx = 0, chess = null;
 
 function loadOpening(name, pgn) {
+  stopAutoplay();
   document.getElementById('opname').textContent = name;
+  const placard = document.getElementById('placard');
+  if (placard) placard.classList.add('on');
   const tmp = new Chess();
   tmp.load_pgn(pgn);
   moves = tmp.history({ verbose: true });
@@ -787,31 +1286,46 @@ function syncUI() {
   }
   ['b0','b1'].forEach(id => document.getElementById(id).disabled = idx === 0);
   ['b2','b3'].forEach(id => document.getElementById(id).disabled = !moves.length || idx >= moves.length);
+  const bplay = document.getElementById('bplay');
+  if (bplay) bplay.disabled = !moves.length;
+  renderMoveStrip();
+  updateTreeHighlight();
 }
 
-window.goFwd = () => {
-  if (!chess || idx >= moves.length) return;
-  const mv = moves[idx]; chess.move(mv.san); idx++;
-  renderPos(chess.board(), mv); syncUI();
-};
-window.goBack = () => {
-  if (!chess || idx === 0) return;
-  idx--; chess = new Chess();
-  for (let i = 0; i < idx; i++) chess.move(moves[i].san);
-  renderPos(chess.board(), idx > 0 ? moves[idx - 1] : null); syncUI();
-};
-window.goStart = () => {
+function jumpToPly(n) {
   if (!chess) return;
-  idx = 0; chess = new Chess();
-  renderPos(chess.board(), null); syncUI();
-};
-window.goEnd = () => {
-  if (!chess) return;
+  idx = Math.max(0, Math.min(n, moves.length));
   chess = new Chess();
-  moves.forEach(m => chess.move(m.san));
-  idx = moves.length;
-  renderPos(chess.board(), moves.length ? moves[moves.length - 1] : null); syncUI();
-};
+  for (let i = 0; i < idx; i++) chess.move(moves[i].san);
+  renderPos(chess.board(), idx > 0 ? moves[idx - 1] : null);
+  syncUI();
+}
+window.jumpToPly = jumpToPly;
+
+// ── Autoplay ──────────────────────────────────────────────────
+let autoplayTimer = null;
+function stopAutoplay() {
+  if (autoplayTimer) { clearInterval(autoplayTimer); autoplayTimer = null; }
+  const btn = document.getElementById('bplay');
+  if (btn) { btn.textContent = '▶︎'; btn.title = 'Autoplay'; }
+}
+function toggleAutoplay() {
+  if (autoplayTimer) { stopAutoplay(); return; }
+  if (!moves.length) return;
+  if (idx >= moves.length) jumpToPly(0);
+  const btn = document.getElementById('bplay');
+  if (btn) { btn.textContent = '⏸'; btn.title = 'Pause'; }
+  autoplayTimer = setInterval(() => {
+    if (!chess || idx >= moves.length) { stopAutoplay(); return; }
+    jumpToPly(idx + 1);
+  }, 1200);
+}
+window.toggleAutoplay = toggleAutoplay;
+
+window.goFwd   = () => { stopAutoplay(); if (chess && idx < moves.length) jumpToPly(idx + 1); };
+window.goBack  = () => { stopAutoplay(); if (idx > 0) jumpToPly(idx - 1); };
+window.goStart = () => { stopAutoplay(); jumpToPly(0); };
+window.goEnd   = () => { stopAutoplay(); jumpToPly(moves.length); };
 
 // expose for API script
 window.loadOpening = loadOpening;
@@ -839,7 +1353,23 @@ syncUI();
 ;(function loop() {
   requestAnimationFrame(loop);
   resize();
-  controls.update();
+
+  const now = performance.now();
+  updateTweens(now);
+
+  if (!flightActive) {
+    if (!idleStopped) {
+      const t = (now - idleStart) / 1000;
+      const ang = idleBaseAngle + Math.sin((t / 8) * Math.PI * 2) * 0.04;
+      camera.position.set(
+        controls.target.x + Math.cos(ang) * idleRadius,
+        controls.target.y + idleHeight,
+        controls.target.z + Math.sin(ang) * idleRadius
+      );
+      camera.lookAt(controls.target);
+    }
+    controls.update();
+  }
 
   scene.overrideMaterial = normalMaterial;
   renderer.setRenderTarget(normalTarget);
@@ -875,6 +1405,125 @@ window.fillQ = btn => {
   ask();
 };
 
+// ── Markdown → HTML (escapes first, then converts a small safe subset) ──
+function escapeHtml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function mdToHtml(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/^###\s+(.*)$/gm, '<h4>$1</h4>');
+  s = s.replace(/^##\s+(.*)$/gm, '<h3>$1</h3>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/`([^`]+?)`/g, '<code>$1</code>');
+  s = s.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
+
+  // group consecutive "- " / "* " lines into <ul><li>
+  const lines = s.split('\n');
+  const grouped = [];
+  let inList = false;
+  for (const line of lines) {
+    const m = line.match(/^\s*[-*]\s+(.*)$/);
+    if (m) {
+      if (!inList) { grouped.push('<ul>'); inList = true; }
+      grouped.push(`<li>${m[1]}</li>`);
+    } else {
+      if (inList) { grouped.push('</ul>'); inList = false; }
+      grouped.push(line);
+    }
+  }
+  if (inList) grouped.push('</ul>');
+
+  // assemble paragraphs from consecutive plain-text lines, leaving
+  // already-block-level lines (headings/lists) untouched so a list
+  // butted right up against a paragraph (no blank line) doesn't get
+  // wrapped/merged with it.
+  const isBlockLine = (l) => /^<(h3|h4|ul|\/ul|li)/.test(l);
+  const out = [];
+  let para = [];
+  const flushPara = () => {
+    const t = para.join('<br>').trim();
+    if (t) out.push(`<p>${t}</p>`);
+    para = [];
+  };
+  for (const line of grouped) {
+    const trimmed = line.trim();
+    if (trimmed === '') { flushPara(); continue; }
+    if (isBlockLine(trimmed)) { flushPara(); out.push(trimmed); continue; }
+    para.push(trimmed);
+  }
+  flushPara();
+  return out.join('');
+}
+
+// ── Cold-start-aware "thinking" indicator ──────────────────────
+let thinkTimer = null, thinkStartTs = 0;
+function updateThinkingMsg() {
+  const s = Math.floor((Date.now() - thinkStartTs) / 1000);
+  const msgEl = document.getElementById('thinkMsg');
+  const elEl  = document.getElementById('thinkElapsed');
+  let msg;
+  if (s < 4) msg = 'Analyzing…';
+  else if (s < 10) msg = 'Searching opening database…';
+  else if (s < 30) msg = 'Waking the server — free hosting naps when idle. Up to a minute on the first question…';
+  else msg = 'Still waking up — hang tight…';
+  if (msgEl) msgEl.textContent = msg;
+  if (elEl)  elEl.textContent = s >= 10 ? ` · ${s}s` : '';
+}
+function startThinking() {
+  thinkStartTs = Date.now();
+  updateThinkingMsg();
+  clearInterval(thinkTimer);
+  thinkTimer = setInterval(updateThinkingMsg, 1000);
+}
+function stopThinking() {
+  clearInterval(thinkTimer);
+  thinkTimer = null;
+}
+
+function skeletonCardsHtml(n) {
+  return Array.from({ length: n }).map((_, i) => `
+    <div class="source-card skeleton-card" style="animation-delay:${i * 60}ms">
+      <span class="eco skeleton-shimmer skel-eco"></span>
+      <div style="flex:1;min-width:0">
+        <div class="skeleton-shimmer skel-line1"></div>
+        <div class="skeleton-shimmer skel-line2"></div>
+      </div>
+    </div>`).join('');
+}
+
+const ECO_RGB = { A: '192,132,252', B: '96,165,250', C: '74,222,128', D: '251,191,36', E: '248,113,113' };
+function ecoStyle(eco) {
+  const rgb = ECO_RGB[(eco || '')[0]] || '212,175,55';
+  return `color:rgb(${rgb});border-color:rgba(${rgb},0.85);`;
+}
+
+function sourceCardHtml(s, i) {
+  const pct = Math.max(0, Math.min(100, Math.round((s.similarity || 0) * 100)));
+  const circumference = 56.549;
+  const offset = circumference * (1 - pct / 100);
+  const ecoSafe  = escapeHtml(s.eco);
+  const nameSafe = escapeHtml(s.name);
+  const pgnSafe  = escapeHtml(s.pgn);
+  return `
+    <div class="source-card" data-i="${i}" style="animation-delay:${i * 60}ms"
+         onclick="pickSource(this,'${esc(s.name)}','${esc(s.pgn)}')">
+      <span class="eco" style="${ecoStyle(s.eco)}">${ecoSafe}</span>
+      <div style="flex:1;min-width:0">
+        <div class="src-name">${nameSafe}</div>
+        <div class="src-pgn">${pgnSafe}</div>
+      </div>
+      <div class="sim-ring" title="${pct}% match">
+        <svg width="22" height="22" viewBox="0 0 22 22">
+          <circle cx="11" cy="11" r="9" fill="none" stroke="var(--border)" stroke-width="2"/>
+          <circle cx="11" cy="11" r="9" fill="none" stroke="var(--gold)" stroke-width="2"
+                  stroke-linecap="round" stroke-dasharray="${circumference}"
+                  stroke-dashoffset="${offset}" transform="rotate(-90 11 11)"/>
+        </svg>
+        <span class="sim-pct">${pct}</span>
+      </div>
+    </div>`;
+}
+
 window.ask = async () => {
   const q = document.getElementById('q').value.trim();
   if (!q) return;
@@ -888,8 +1537,10 @@ window.ask = async () => {
 
   send.disabled = true;
   think.classList.add('on');
+  startThinking();
   ac.classList.remove('on');
-  ss.style.display = 'none';
+  ss.style.display = 'block';
+  sl.innerHTML = skeletonCardsHtml(3);
 
   try {
     const res = await fetch(`${API}/ask`, {
@@ -901,32 +1552,28 @@ window.ask = async () => {
     const data = await res.json();
 
     at.className = 'answer-text';
-    at.textContent = data.answer;
+    at.innerHTML = mdToHtml(data.answer);
     ac.classList.add('on');
 
     if (data.sources?.length) {
-      sl.innerHTML = data.sources.map((s, i) => `
-        <div class="source-card" data-i="${i}"
-             onclick="pickSource(this,'${esc(s.name)}','${esc(s.pgn)}')">
-          <span class="eco">${s.eco}</span>
-          <div style="flex:1;min-width:0">
-            <div class="src-name">${s.name}</div>
-            <div class="src-pgn">${s.pgn}</div>
-          </div>
-          <div class="sim-bar">
-            <div class="sim-fill" style="width:${Math.round(s.similarity*100)}%"></div>
-          </div>
-        </div>`).join('');
+      sl.innerHTML = data.sources.map((s, i) => sourceCardHtml(s, i)).join('');
       ss.style.display = 'block';
       // auto-load top result
       pickSource(sl.querySelector('.source-card'), data.sources[0].name, data.sources[0].pgn);
+      window.buildDecisionTree?.(data.sources);
+    } else {
+      ss.style.display = 'none';
+      window.buildDecisionTree?.([]);
     }
   } catch (e) {
     at.className = 'answer-text err';
     at.textContent = `Error: ${e.message}`;
     ac.classList.add('on');
+    ss.style.display = 'none';
+    window.buildDecisionTree?.([]);
   } finally {
     think.classList.remove('on');
+    stopThinking();
     send.disabled = false;
   }
 };
@@ -941,8 +1588,20 @@ function esc(s) {
   return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+// Enter submits (Shift+Enter for a newline); Ctrl/Cmd+Enter also still works.
 document.getElementById('q').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) window.ask();
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); window.ask(); }
+});
+
+// ←/→ step through the loaded line, Home/End jump to the ends — ignored
+// while the user is typing in the textarea.
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if (e.key === 'ArrowLeft')       { e.preventDefault(); window.goBack?.(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); window.goFwd?.(); }
+  else if (e.key === 'Home')       { e.preventDefault(); window.goStart?.(); }
+  else if (e.key === 'End')        { e.preventDefault(); window.goEnd?.(); }
 });
 </script>
 

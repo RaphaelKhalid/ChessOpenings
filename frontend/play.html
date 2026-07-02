@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Play with a Friend — Chess Openings</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:       #0a0a0f;
@@ -24,13 +27,25 @@
 
     html, body { height: 100%; overflow: hidden; }
 
+    @keyframes pageFade { from { opacity: 0; } to { opacity: 1; } }
+
     body {
       background: var(--bg);
       color: var(--cream);
       font-family: 'Inter', system-ui, sans-serif;
       display: flex;
       flex-direction: column;
+      animation: pageFade .4s ease both;
     }
+
+    :focus-visible { outline: 2px solid var(--gold-dim); outline-offset: 2px; }
+
+    .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .scroll-thin::-webkit-scrollbar { width: 3px; height: 3px; }
+    .scroll-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+    button, a, input, .seg-btn, .chip { touch-action: manipulation; }
 
     nav {
       height: 52px;
@@ -46,9 +61,11 @@
     .navlink {
       font-size: 0.78rem; color: var(--muted); text-decoration: none;
       border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.7rem;
-      transition: all .15s;
+      transition: color .15s, border-color .15s, background-color .15s, transform .15s;
+      display: inline-block;
     }
     .navlink:hover { color: var(--cream); border-color: var(--gold-dim); }
+    .navlink:active { transform: scale(.97); }
 
     main { flex: 1; display: flex; overflow: hidden; }
 
@@ -59,30 +76,42 @@
     .right { flex: 1; position: relative; overflow: hidden; }
     #c { width: 100%; height: 100%; display: block; }
 
+    .vignette {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(10,10,15,.55) 100%);
+    }
+
     .lbl { font-size: 0.67rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.55rem; }
 
     .segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .seg-btn {
       background: var(--surf2); border: 1px solid var(--border); color: var(--cream);
-      border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; cursor: pointer; transition: all .15s;
+      border-radius: 6px; padding: 0.5rem 0.7rem; min-height: 44px; font-size: 0.78rem; cursor: pointer;
+      transition: color .15s, border-color .15s, background-color .15s, transform .15s;
     }
     .seg-btn:hover { border-color: var(--gold-dim); }
+    .seg-btn:active { transform: scale(.97); }
     .seg-btn.active { border-color: var(--gold); background: rgba(212,175,55,.12); color: var(--gold); }
 
     .btn-primary {
       width: 100%; background: var(--gold); color: #1a1408; border: none; border-radius: 8px;
-      padding: 0.75rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+      padding: 0.75rem; min-height: 44px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      transition: opacity .15s, transform .15s;
       font-family: inherit;
     }
     .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:active:not(:disabled) { transform: scale(.97); }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-secondary {
       width: 100%; background: transparent; color: var(--cream); border: 1px solid var(--border);
-      border-radius: 8px; padding: 0.6rem; font-size: 0.78rem; cursor: pointer; transition: all .15s;
+      border-radius: 8px; padding: 0.6rem; min-height: 44px; font-size: 0.78rem; cursor: pointer;
+      transition: color .15s, border-color .15s, transform .15s;
       font-family: inherit;
     }
     .btn-secondary:hover { border-color: var(--red); color: var(--red); }
+    .btn-secondary:active { transform: scale(.97); }
 
     .share-box {
       display: flex; gap: 0.4rem; align-items: center;
@@ -94,8 +123,10 @@
     }
     .copy-btn {
       background: var(--gold); color: #1a1408; border: none; border-radius: 5px; padding: 0.35rem 0.6rem;
-      font-size: 0.7rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+      min-height: 44px; font-size: 0.7rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+      transition: opacity .15s, transform .15s;
     }
+    .copy-btn:active { transform: scale(.97); }
 
     .player-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -127,6 +158,31 @@
 
     .center-msg { margin: auto; text-align: center; color: var(--muted); font-size: 0.85rem; padding: 2rem; }
     .center-msg .big { font-family: 'Cinzel', serif; color: var(--gold); font-size: 1rem; margin-bottom: 0.6rem; }
+
+    /* ── Mobile / portrait: stack panel above board ── */
+    @media (max-width: 768px) {
+      html, body { height: auto; overflow: visible; }
+      main {
+        flex-direction: column;
+        overflow: visible;
+        height: auto;
+      }
+      .left {
+        width: 100%;
+        height: auto;
+        max-height: none;
+        overflow-y: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+      }
+      .right {
+        flex: none;
+        width: 100%;
+        height: 60vh;
+        min-height: 340px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -137,9 +193,10 @@
 </nav>
 
 <main>
-  <div class="left" id="panel"></div>
+  <div class="left scroll-thin" id="panel"></div>
   <div class="right">
     <canvas id="c"></canvas>
+    <div class="vignette"></div>
     <div class="hint">Click a piece, then a highlighted square · Drag to rotate</div>
   </div>
 </main>
